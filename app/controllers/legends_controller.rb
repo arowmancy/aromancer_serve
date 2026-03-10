@@ -1,5 +1,6 @@
 class LegendsController < ApplicationController
-  before_action :set_legend, only: %i[ show update destroy ]
+  before_action :load_api_player
+  before_action :set_legend, only: %i[ show update ]
 
   # GET /legends
   def index
@@ -33,18 +34,11 @@ class LegendsController < ApplicationController
     end
   end
 
-  # DELETE /legends/1
-  def destroy
-    @legend.destroy!
-  end
-
   private
-    # Use callbacks to share common setup or constraints between actions.
     def set_legend
       @legend = Legend.find(params.expect(:id))
     end
 
-    # Only allow a list of trusted parameters through.
     def legend_params
       params.expect(legend: [ :status, :story_count, :player_count ])
     end
