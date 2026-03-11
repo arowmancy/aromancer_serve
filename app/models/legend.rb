@@ -22,6 +22,11 @@ class Legend < ApplicationRecord
     :complete,
   ]
 
+  def current
+    puts "todo: only allows for one story rn"
+    stories.first.current_chapter
+  end
+
   private
 
   def configure_state

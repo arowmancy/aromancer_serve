@@ -22,17 +22,15 @@ class Word < ApplicationRecord
   ]
 
   def json_card
+    suit_display = self.suit.split("")[0].upcase
     {
       id: id,
-      display: to_string,
+      value_display: suit_display,
+      suit_display: number? ? value : style,
       value: value,
       suit: suit,
       style: style
     }
-  end
-
-  def to_string
-    "#{self.suit.split("")[0].upcase}#{number? ? value : style}"
   end
 
 end

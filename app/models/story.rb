@@ -8,9 +8,9 @@ class Story < ApplicationRecord
     dictionary = Dictionary.create(story: self)
     # todo: alternate when multiple stories implemented
     dealer = legend.players.first
-    puts legend.players
-    puts dealer
-    puts legend.players.where.not(id: dealer.id).first
+    # puts legend.players
+    # puts dealer
+    # puts legend.players.where.not(id: dealer.id).first
     chapter = chapters.create(
       dealer: dealer,
       turn_player: legend.players.where.not(id: dealer.id).first
@@ -19,7 +19,7 @@ class Story < ApplicationRecord
   end
 
   def current_chapter
-    chapters.to_a.filter{|c| c.player_words.count > 0}.first
+    @current_chapter ||= chapters.to_a.filter{|c| c.player_words.count > 0}.first
   end
 end
 

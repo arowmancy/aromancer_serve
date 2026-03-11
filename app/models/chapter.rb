@@ -48,6 +48,23 @@ class Chapter < ApplicationRecord
       # deal to dealer
       deal_one_card(dealer)
     end
+    # poke the bots
+    story.legend.players.where(type: BotPlayer).each{|bp|
+      bp.poke
+    }
+  end
+
+  def add_scroll_word(player, word)
+    return unless player.id == turn_player.id
+    # do nothing unless the word is playable by the player
+    playable_words = player_words.where(player_id: player.id, word_id: word.id)
+    return unless playable_words.any?
+
+    # word valid for play...
+    # move word from player_words to scroll_words
+    pw = playable_words.find_by(player_id: player.id, word_id: word.id)
+    # delete the player_word record and add the scroll_word record
+    return pw.destroy && scroll_words.create(word_id: word.id)
   end
 
   def current_state_json(for_player)
@@ -100,7 +117,7 @@ class Chapter < ApplicationRecord
   end
 
   def non_dealers
-    story.legend.players.where.not(id: dealer_id)
+    @non_dealers ||= story.legend.players.where.not(id: dealer.id)
   end
 
   # non-zero-based indexing (eg 1,2,3...)

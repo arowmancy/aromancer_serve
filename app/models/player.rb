@@ -19,8 +19,7 @@ class Player < ApplicationRecord
 
   def current_game_json
     return nil unless active_legend.present?
-    puts "todo: only allows for one story rn"
-    active_legend.stories.first.current_chapter.current_state_json(self)
+    active_legend.current.current_state_json(self)
   end
 
   private
