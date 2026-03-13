@@ -6,9 +6,8 @@ class Player < ApplicationRecord
   has_many :words
   belongs_to :active_legend, class_name: :Legend, optional: true, foreign_key: :active_legend_id
 
-  after_validation :check_active_legend
-  before_create :set_api_key, :check_alias
-  before_save :check_alias
+  after_validation :check_alias, :check_active_legend
+  before_create :set_api_key
   after_save :check_ready
 
   enum :status, [
@@ -20,6 +19,52 @@ class Player < ApplicationRecord
   def current_game_json
     return nil unless active_legend.present?
     active_legend.current.current_state_json(self)
+  end
+
+  def submit_turn(word, sentence_words = [], sign = false)
+    if sentence_words.any?
+      # todo: better validation
+      # todo: put sentence logic in chapter model (similar to add_scroll_word)
+      # create the new sentence
+      sentence = active_legend.current.sentences.create(
+        author: self,
+        signature: sign ? word : nil
+      )
+
+      # create sentence_word records
+      sentence.sentence_words.create(word: sw) if !sign
+      sentence_words.each{|sw|
+        sentence.sentence_words.create(word: sw)
+      }
+
+
+      # remove from player_words and scroll_words
+      active_legend.current.player_words.where(
+        word_id: [word.id] + sentence_words.pluck(:id).to_a
+      ).delete_all
+      active_legend.current.scroll_words.where(
+        word_id: [word.id] + sentence_words.pluck(:id).to_a
+      ).delete_all
+    else
+      # if add_scroll_word succeeds, update turn player
+      active_legend.current.add_scroll_word(self, word)
+    end
+
+    # set next player
+    # only supports 2 or 3 players
+    next_id = active_legend.current.non_dealers.first.id
+    if self.id != active_legend.current.dealer_id
+      pids = active_legend.current.story.legend.players.pluck(:id).to_a
+      next_id = self.id + 1
+      if !pids.include?(next_id)
+        next_id = pids.min + (pids.min == self.id ? 1 : 0)
+      end
+    end
+    active_legend.current.update(turn_player_id: next_id)
+    active_legend.reload
+    # poke the bot player
+    BotPlayer.find_by(id: next_id)&.poke
+
   end
 
   private

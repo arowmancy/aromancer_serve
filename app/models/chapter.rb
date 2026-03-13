@@ -39,6 +39,8 @@ class Chapter < ApplicationRecord
 
   belongs_to :turn_player, class_name: :Player, foreign_key: :turn_player_id
 
+  has_many :entries
+
   def start
     nds = non_dealers
     11.times do
@@ -48,6 +50,7 @@ class Chapter < ApplicationRecord
       # deal to dealer
       deal_one_card(dealer)
     end
+
     # poke the bots
     story.legend.players.where(type: BotPlayer).each{|bp|
       bp.poke
@@ -73,7 +76,7 @@ class Chapter < ApplicationRecord
       dealer: player_json(dealer),
       turn_player: player_json(turn_player),
       scroll_words: unwritten_words.sort_by{|w| [w.value, w.suit]}.map{|w| w.json_card},
-      sentences: sentences.where(author: nil).map{|s| s.json_sentence},
+      sentences: sentences.where(signature: nil).map{|s| s.json_sentence},
       player: player_json(for_player, for_player)
     }
   end

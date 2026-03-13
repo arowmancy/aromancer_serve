@@ -1,6 +1,6 @@
 Rails.application.routes.draw do
   resources :legends, only: [:create, :update, :show, :index] do
-    resources :arena, only: [:index]
+    resources :arena, only: [:create, :index]
   end
   resources :players
   # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html

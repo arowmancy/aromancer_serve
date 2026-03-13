@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_09_211247) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_12_190403) do
   create_table "chapters", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.integer "dealer_id", null: false
@@ -28,6 +28,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_09_211247) do
     t.integer "story_id", null: false
     t.datetime "updated_at", null: false
     t.index ["story_id"], name: "index_dictionaries_on_story_id"
+  end
+
+  create_table "entries", force: :cascade do |t|
+    t.integer "action", default: 0
+    t.integer "chapter_id", null: false
+    t.datetime "created_at", null: false
+    t.string "description"
+    t.integer "player_id"
+    t.datetime "updated_at", null: false
+    t.integer "word_id"
+    t.index ["chapter_id"], name: "index_entries_on_chapter_id"
+    t.index ["player_id"], name: "index_entries_on_player_id"
+    t.index ["word_id"], name: "index_entries_on_word_id"
   end
 
   create_table "legends", force: :cascade do |t|
@@ -100,7 +113,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_09_211247) do
     t.integer "author_id", null: false
     t.integer "chapter_id", null: false
     t.datetime "created_at", null: false
-    t.integer "signature_id", null: false
+    t.integer "signature_id"
     t.datetime "updated_at", null: false
     t.integer "value", default: 0
     t.index ["author_id"], name: "index_sentences_on_author_id"
@@ -131,6 +144,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_09_211247) do
 
   add_foreign_key "chapters", "stories"
   add_foreign_key "dictionaries", "stories"
+  add_foreign_key "entries", "chapters"
+  add_foreign_key "entries", "players"
+  add_foreign_key "entries", "words"
   add_foreign_key "player_legends", "legends"
   add_foreign_key "player_legends", "players"
   add_foreign_key "player_words", "chapters"
