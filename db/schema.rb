@@ -118,6 +118,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_12_190403) do
     t.integer "value", default: 0
     t.index ["author_id"], name: "index_sentences_on_author_id"
     t.index ["chapter_id"], name: "index_sentences_on_chapter_id"
+    t.index ["signature_id", "author_id", "chapter_id"], name: "index_sentences_on_signature_id_and_author_id_and_chapter_id", unique: true
     t.index ["signature_id"], name: "index_sentences_on_signature_id"
   end
 

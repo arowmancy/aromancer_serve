@@ -33,4 +33,8 @@ class Word < ApplicationRecord
     }
   end
 
+  def to_s
+    "the #{number? ? value : style} of #{suit}."
+  end
+
 end
