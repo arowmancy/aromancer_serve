@@ -113,12 +113,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_12_190403) do
     t.integer "author_id", null: false
     t.integer "chapter_id", null: false
     t.datetime "created_at", null: false
+    t.boolean "is_stack", default: false
     t.integer "signature_id"
     t.datetime "updated_at", null: false
     t.integer "value", default: 0
     t.index ["author_id"], name: "index_sentences_on_author_id"
     t.index ["chapter_id"], name: "index_sentences_on_chapter_id"
-    t.index ["signature_id", "author_id", "chapter_id"], name: "index_sentences_on_signature_id_and_author_id_and_chapter_id", unique: true
+    t.index ["id", "signature_id", "author_id", "chapter_id"], name: "idx_on_id_signature_id_author_id_chapter_id_9056f18253", unique: true
     t.index ["signature_id"], name: "index_sentences_on_signature_id"
   end
 

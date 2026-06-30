@@ -1,9 +1,0 @@
-# Read about fixtures at https://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
-
-one:
-  legend_id: one
-  winner_id: one
-
-two:
-  legend_id: two
-  winner_id: two

@@ -17,48 +17,66 @@ class Player < ApplicationRecord
   ]
 
   def current_game_json
-    return nil unless active_legend.present?
     active_legend.current.current_state_json(self)
   end
 
-  def submit_turn(word, sentence_id = nil, sentence_words = [], sign = false)
-
+  def submit_turn(word, sentence_id = nil, words = [], sign = false, is_stack = false)
     # player is adding their own word to the scroll
     is_playing_turn = active_legend.current.player_words.where(player: self, word: word).any?
-    if sentence_words.any?
+    sentence = nil
+
+    if words.any?
       sentence = active_legend.current.sentences.find_by(id: sentence_id)
       if sentence.nil?
         sentence = active_legend.current.sentences.create(
           author: self,
-          signature: sign ? word : nil
+          signature: sign ? word : nil,
+          is_stack: is_stack,
+          value: word.value
         )
+      else
+        if sign
+          sentence.signature = word
+        end
+        sentence.is_stack = is_stack
+        sentence.save
       end
+
       # sentence should always exist here
       sentence.sentence_words.destroy_all
 
-      sentence_words.each{|sw|
-        sentence.sentence_words.create(word: sw)
+      words.each{|wid|
+        sentence.sentence_words.create(word: wid)
       }
 
+      wids_to_remove = words.pluck(:id).to_a
+      if word.present?
+        wids_to_remove << word.id
+      end
+
       if is_playing_turn
-        # remove all sentence sentence_words from player_words
+        # remove all words from player_words
         active_legend.current.player_words.where(
-          word_id: [word.id] + sentence_words.pluck(:id).to_a
+          word_id: wids_to_remove
         ).delete_all
       end
 
-      # remove all sentence sentence_words from scroll_words
+      # remove all words from scroll_words
       active_legend.current.scroll_words.where(
-        word_id: [word.id] + sentence_words.pluck(:id).to_a
+        word_id: wids_to_remove
       ).delete_all
+
+      sentence.save if sentence.sentence_words.any?
     end
 
     if is_playing_turn
       # if add_scroll_word succeeds, update turn player
-      active_legend.current.add_scroll_word(self, word)
+      active_legend.current.add_scroll_word(self, word) unless sentence.present? # already took care of it
 
       # set next player
       # only supports 2 or 3 players
+      return unless active_legend.current.unspoken_words.any?
+
       next_id = active_legend.current.non_dealers.first.id
       if self.id != active_legend.current.dealer_id
         pids = active_legend.current.story.legend.players.pluck(:id).to_a
@@ -72,6 +90,17 @@ class Player < ApplicationRecord
       # poke the bot player
       BotPlayer.find_by(id: next_id)&.poke
     end
+  end
+
+  def hint
+    return unless active_legend.present?
+    return unless active_legend.current&.turn_player_id == self.id
+
+    prioritize_point_values
+  end
+
+  def prioritize_point_values
+
   end
 
   private

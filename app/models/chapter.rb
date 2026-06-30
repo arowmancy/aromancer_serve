@@ -52,7 +52,7 @@ class Chapter < ApplicationRecord
     end
 
     # poke the bots
-    story.legend.players.where(type: BotPlayer).each{|bp|
+    story.legend.players.where(type: BotPlayer.to_s).each{|bp|
       bp.poke
     }
   end

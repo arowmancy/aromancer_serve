@@ -23,8 +23,35 @@ class Legend < ApplicationRecord
   ]
 
   def current
-    puts "todo: only allows for one story rn"
-    stories.first.current_chapter
+    c = (
+      stories.select{|s|
+        s.chapters.where(is_final: false).any?
+      }.first || stories.last
+    )&.current_chapter
+
+    if c.nil?
+      return check_end_of_story
+    end
+
+    return c
+  end
+
+  def check_end_of_story
+    last_story = stories.last
+    return unless last_story.chapters.where(is_final: true).empty?
+
+    last_story.finalize
+    if stories.count < story_count
+      # stories++
+      next_story = stories.create
+      next_story.start
+      next_story.save
+
+      return next_story.chapters.first
+    else
+      # todo: winner/stats
+      complete!
+    end
   end
 
   private
@@ -35,9 +62,9 @@ class Legend < ApplicationRecord
       stories.create unless stories.any?
     when :started
       stories.first.start
-    # ...
+    when :complete
+      # todo:
     else
-
 
     end
   end

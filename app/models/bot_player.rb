@@ -2,8 +2,8 @@ class BotPlayer < Player
   def poke
 
     return unless active_legend.present?
-    return unless active_legend.current.turn_player.id == self.id
     return unless active_legend.started?
+    return unless active_legend.current.turn_player.id == self.id
 
     # i look at my cards
     words = Word.where(
