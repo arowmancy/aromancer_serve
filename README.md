@@ -1,6 +1,6 @@
 # ino_legacy_server
 
-client: `gdevelop`
+client: `web (phaser)`
 server: `rails (api-only, https, wss)`
 
 

@@ -1,5 +1,7 @@
 class Entry < ApplicationRecord
   belongs_to :chapter
+  belongs_to :player
+  belongs_to :word
 
   enum :action, [
     :server,

@@ -9,10 +9,10 @@ class Legend < ApplicationRecord
   has_many :stories
   belongs_to :winner, class_name: :Player, optional: true, foreign_key: :winner_id
 
-  after_save :configure_state
-
   validates :story_count, numericality: { greater_than: Legend::MIN_STORY_COUNT - 1 }
   validates :player_count, numericality: { in: Legend::MIN_PLAYERS..Legend::MAX_PLAYERS }
+
+  # after_create :start
 
   enum :status, [
     :created,
@@ -30,42 +30,51 @@ class Legend < ApplicationRecord
     )&.current_chapter
 
     if c.nil?
-      return check_end_of_story
+      return start
     end
 
     return c
   end
 
-  def check_end_of_story
-    last_story = stories.last
-    return unless last_story.chapters.where(is_final: true).empty?
+  def start
+    return unless active_players.count > 0
 
-    last_story.finalize
+    last_story = stories.last
+    if last_story.present?
+      return unless last_story.chapters.where(is_final: true).empty?
+      last_story.finalize
+    end
+
     if stories.count < story_count
+      if stories.count == 0
+        # player setup
+        active_players.each{|p|
+          player_legends.create(player: p) unless player_legends.where(player: p).any?
+        }
+
+        if player_count == 1 &&
+          player_legends.count == 1
+          bot = Player.spawn_bot(self)
+          puts "here" * 111
+          puts bot.errors.full_messages
+          player_legends.create(player: bot)
+        end
+
+        if created? &&
+          active_players.count >= 2
+          started!
+        end
+      end
+
       # stories++
       next_story = stories.create
-      next_story.start
       next_story.save
+      next_story.start
 
       return next_story.chapters.first
     else
       # todo: winner/stats
       complete!
-    end
-  end
-
-  private
-
-  def configure_state
-    case status.to_sym
-    when :created
-      stories.create unless stories.any?
-    when :started
-      stories.first.start
-    when :complete
-      # todo:
-    else
-
     end
   end
 end

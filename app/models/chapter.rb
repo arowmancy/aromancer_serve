@@ -9,6 +9,7 @@ class Chapter < ApplicationRecord
   # in the player's authored sentences. this value is then added to the
   # global stats for each player.
   has_many :sentences
+  has_many :unsigned_sentences, -> { where(signature: nil) }, class_name: Sentence.to_s
   # class Sentence < ApplicationRecord
   #   belongs_to :author
   #   belongs_to :chapter
@@ -31,6 +32,8 @@ class Chapter < ApplicationRecord
   # all words dealt to players currently in-play.
   has_many :unspoken_words, through: :player_words, source: :word
 
+  has_many :entries
+
   # the story that this chapter belongs to
   belongs_to :story
 
@@ -38,8 +41,6 @@ class Chapter < ApplicationRecord
   belongs_to :dealer, class_name: :Player, foreign_key: :dealer_id
 
   belongs_to :turn_player, class_name: :Player, foreign_key: :turn_player_id
-
-  has_many :entries
 
   def start
     nds = non_dealers
@@ -58,26 +59,51 @@ class Chapter < ApplicationRecord
   end
 
   def add_scroll_word(player, word)
-    return unless player.id == turn_player.id
+    unless player.id == turn_player.id
+      entries.last.update(
+        description: (entries.last.description || "") +
+        " rollback transaction because (player.id 1= turn_player.id) check failed."
+      )
+      return
+    end
     # do nothing unless the word is playable by the player
     playable_words = player_words.where(player_id: player.id, word_id: word.id)
-    return unless playable_words.any?
+    unless playable_words.any?
+      entries.last.update(
+        description: (entries.last.description || "") +
+        " rollback transaction because (playable_words.any?) check failed."
+      )
+      return
+    end
 
-    # word valid for play...
-    # move word from player_words to scroll_words
-    pw = playable_words.find_by(player_id: player.id, word_id: word.id)
-    # delete the player_word record and add the scroll_word record
-    return pw.destroy && scroll_words.create(word_id: word.id)
+    begin
+      # word valid for play...
+      # move word from player_words to scroll_words
+      pw = playable_words.find_by(player_id: player.id, word_id: word.id)
+      # delete the player_word record and add the scroll_word record
+      pw.destroy && scroll_words.create(word_id: word.id)
+
+      entries.last.update(
+        description: (entries.last.description || "") +
+        " #{player.alias} placed #{word.json_card[:value_display]} onto the scroll."
+      )
+    rescue StandardError => e
+      entries.last.update(
+        description: (entries.last.description || "") +
+        " rollback transaction because #{e.message}"
+      )
+    end
   end
 
   def current_state_json(for_player)
     {
       title: "#{self.class.name.downcase} #{nzindex_number}",
-      dealer: player_json(dealer),
-      turn_player: player_json(turn_player),
+      dealer: player_json(dealer).except(:words),
+      turn_player: player_json(turn_player).except(:words),
       scroll_words: unwritten_words.sort_by{|w| [w.value, w.suit]}.map{|w| w.json_card},
-      sentences: sentences.where(signature: nil).map{|s| s.json_sentence},
-      player: player_json(for_player, for_player)
+      sentences: unsigned_sentences.map{|s| s.json_sentence},
+      player: player_json(for_player, for_player),
+      players: story.legend.players.map{|p| player_json(p).except(:words)}
     }
   end
 

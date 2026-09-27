@@ -15,7 +15,7 @@ class Sentence < ApplicationRecord
     {
       id: id,
       value: value,
-      author: author.present? ? chapter.player_json(author) : nil,
+      author: author.present? ? chapter.player_json(author).except(:words) : nil,
       signature: signature.present? ? signature.json_card : nil,
       words: words.sort_by{|w| [w.value, w.suit]}.map{|w| w.json_card},
       is_stack: is_stack,

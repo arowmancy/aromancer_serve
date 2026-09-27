@@ -1,4 +1,5 @@
 class BotPlayer < Player
+
   def poke
 
     return unless active_legend.present?

@@ -7,34 +7,26 @@ class Story < ApplicationRecord
   TOTAL_POINTS = 11.to_f
 
   def start
-    dictionary = Dictionary.create(story: self)
-
-    dealer = legend.players.first
-
-    @current_chapter = chapters.create(
-      dealer: dealer,
-      turn_player: legend.players.where.not(id: dealer.id).first
-    )
-    @current_chapter.start
-  end
-
-  def start_next_chapter
     return if chapters.where(is_final: true).present?
-    dealer = legend.players.where.not(id: chapters.last.dealer_id).first
+
+    Dictionary.create(story: self) if dictionary.nil?
+
+    dealer = legend.players.where.not(id: chapters&.last&.dealer_id).first || legend.players.first
     @current_chapter = chapters.create(
       dealer: dealer,
       turn_player: legend.players.where.not(id: dealer.id).first
     )
+
     lc = chapters.last
     ScrollWord.where(chapter: lc).update_all(chapter_id: @current_chapter.id)
-    Sentence.where(chapter: lc, signature: nil).update_all(chapter_id: @current_chapter.id)
+    lc.unsigned_sentences.update_all(chapter_id: @current_chapter.id)
 
     @current_chapter.start
     @current_chapter
   end
 
   def current_chapter
-    @current_chapter ||= chapters.to_a.filter{|c| c.unspoken_words.any?}.first || start_next_chapter
+    @current_chapter ||= chapters.to_a.filter{|c| c.unspoken_words.any?}.first || start
   end
 
   def finalize
@@ -42,8 +34,8 @@ class Story < ApplicationRecord
     final_chapter = chapters.last
     return unless final_chapter.present? && final_chapter.is_final
 
-    open_sentences = final_chapter.sentences.where(signature: nil)
-    return unless final_chapter.unspoken_words.any? || open_sentences.any?
+    return unless final_chapter.unspoken_words.any? ||
+      final_chapter.unsigned_sentences.any?
 
     scroll_winner = final_chapter.sentences.where.not(signature: nil).order(update_at: :asc).last&.author
     if scroll_winner.nil?
@@ -51,6 +43,7 @@ class Story < ApplicationRecord
       scroll_winner = legend.players.first
     end
 
+    # create final sentence to hold everything left on the scroll
     closing_sentence = final_chapter.sentences.create(
       is_stack: true,
       value: final_chapter.unwritten_words.map{|uw| uw.value}.max,
@@ -58,17 +51,19 @@ class Story < ApplicationRecord
       signature: final_chapter.scroll_words.first.word, # shouldn't matter
       author: scroll_winner
     )
+    # remove all words from the scroll
+    final_chapter.scroll_words.delete_all
 
-    if open_sentences.any?
-      open_sentences.each{|os|
-        os.words.each{|w|
+    if final_chapter.unsigned_sentences.any?
+      # move all words from unsigned sentences to final sentence
+      final_chapter.unsigned_sentences.each{|us|
+        us.words.each{|w|
           closing_sentence.words << w
         }
       }
-      open_sentences.destroy_all
+      final_chapter.unsigned_sentences.destroy_all
     end
 
-    final_chapter.scroll_words.delete_all
     final_chapter.save
 
     # todo: set story winner

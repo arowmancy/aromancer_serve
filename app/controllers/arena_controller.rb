@@ -1,11 +1,11 @@
 class ArenaController < ApplicationController
-  before_action :load_api_player
-  before_action :set_legend, only: %i[ index ]
   before_action :set_chapter, only: %i[ create update ]
 
   CREATE_PAYLOAD = {
     arena: {
+      wytyd: "what you think you're doing. included in audit trail.",
       word_id: "integer, this is the 'word being played' this turn",
+      sentence_id: "integer, this is the 'sentence being played' this turn (optional)",
       sentence: {
         signature_id: "integer, nullable, if present, attempt to sign the sentence.",
         word_ids: "integer array, word ids to include in sentence.",
@@ -16,6 +16,7 @@ class ArenaController < ApplicationController
 
   UPDATE_PAYLOAD = {
     arena: {
+      wytyd: "what you think you're doing. included in audit trail.",
       sentence_ids: "integer array, sentence ids to combine",
       value: "integer, value of the new sentence.",
       is_stack: "boolean, is_stack for new sentence."
@@ -52,7 +53,7 @@ class ArenaController < ApplicationController
       return
     end
 
-    to_combine = @chapter.sentences.where(signature_id: nil, id: sentence_ids)
+    to_combine = @chapter.unsigned_sentences.where(id: sentence_ids)
     if to_combine.count != sentence_ids.count
       error_message = "missing open sentences for sentence ids: #{sentence_ids}."
       # {code: 400, name: :bad_request}
@@ -125,6 +126,8 @@ class ArenaController < ApplicationController
       existing_sentence = @chapter.sentences.find_by(id: arena[:sentence_id])
     end
 
+    # debugger
+
     if word.nil? && existing_sentence.nil?
       error_message = "invalid value(s) at param [word_id or sentence_id]"
       # {code: 400, name: :bad_request}
@@ -138,7 +141,7 @@ class ArenaController < ApplicationController
     is_stack = false
     if arena[:sentence].present?
       sentence = arena[:sentence]
-      word_ids = sentence[:word_ids]
+      word_ids = sentence[:word_ids] || existing_sentence&.words.pluck(:id)
 
       should_sign = sentence[:signature_id].present?
 
@@ -182,23 +185,17 @@ class ArenaController < ApplicationController
       end
     end
 
-    # if we make it here, the payload is ready to be validated for submission
-    @api_player.submit_turn(word, existing_sentence&.id, sws, should_sign, is_stack)
-    render json: @api_player.current_game_json
+    # if we make it here, the payload is ready to be submitted
+    @new_entry = @chapter.entries.create(
+      player: @api_player,
+      word: word,
+      description: "#{@api_player.alias} wytyd: #{arena[:wytyd]}"
+    )
+    @api_player.submit_turn(word, existing_sentence&.id, sws, should_sign, is_stack, entry: @new_entry)
+    render json: @api_player.current_game_json, status: :created
   end
 
   private
-
-  def respond_with_error(head_response, message, object = nil)
-    # using Rack::Utils::SYMBOL_TO_STATUS_CODE to set head status code
-
-    Rails.logger.debug(message)
-    render json: {
-      error_message: message,
-      error_object: object,
-      param_structure: @param_structure
-    }, status: head_response
-  end
 
   def set_chapter
     @chapter = @api_player&.active_legend.current
@@ -208,10 +205,5 @@ class ArenaController < ApplicationController
       respond_with_error :forbidden, error_message
       return
     end
-  end
-
-  def set_legend
-    @param_structure = ArenaController::CREATE_PAYLOAD
-    @legend = Legend.find(params.expect(:legend_id))
   end
 end

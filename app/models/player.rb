@@ -4,11 +4,12 @@ class Player < ApplicationRecord
   has_many :legend_wins, class_name: :Legend, foreign_key: :winner_id
   has_many :story_wins, class_name: :Story, foreign_key: :winner_id
   has_many :written_sentences, class_name: :Sentence, foreign_key: :author_id
+  has_many :entries
   belongs_to :active_legend, class_name: :Legend, optional: true, foreign_key: :active_legend_id
+  belongs_to :user, optional: true
 
   after_validation :check_alias, :check_active_legend
   before_create :set_api_key
-  after_save :check_ready
 
   enum :status, [
     :gone,
@@ -20,7 +21,19 @@ class Player < ApplicationRecord
     active_legend.current.current_state_json(self)
   end
 
-  def submit_turn(word, sentence_id = nil, words = [], sign = false, is_stack = false)
+  # expects word to be the "signature card" if sign = true
+  def submit_turn(word,
+    sentence_id = nil,
+    words = [],
+    sign = false,
+    is_stack = false,
+    entry: nil
+  )
+    entry = active_legend.current.entries.find_by(id: entry&.id) || active_legend.current.entries.create(
+      player: self,
+      word: word,
+      description: "#{self.alias} submitting turn..."
+    )
     # player is adding their own word to the scroll
     is_playing_turn = active_legend.current.player_words.where(player: self, word: word).any?
     sentence = nil
@@ -34,9 +47,11 @@ class Player < ApplicationRecord
           is_stack: is_stack,
           value: word.value
         )
+        entry.update(description: (entry.description || "") + " created sentence: #{sentence.to_json}")
       else
         if sign
           sentence.signature = word
+          entry.update(description: (entry.description || "") + " signed sentence: #{sentence.to_json}")
         end
         sentence.is_stack = is_stack
         sentence.save
@@ -105,8 +120,8 @@ class Player < ApplicationRecord
 
   private
 
-  def spawn_bot(active_legend)
-    bot = Player.create(type: BotPlayer, active_legend: active_legend)
+  def self.spawn_bot(legend)
+    bot = Player.create(type: BotPlayer, active_legend: legend)
     bot.update(alias: "bot#{bot.id}", status: :playing)
     bot
   end
@@ -126,21 +141,5 @@ class Player < ApplicationRecord
       active_legend_id == :null.to_s
 
     self.active_legend_id = self.active_legend_id.to_i if self.active_legend_id.kind_of?(String)
-  end
-
-  def check_ready
-    if active_legend.present?
-      player_legends.create(legend: active_legend) unless player_legends.where(player: self, legend: self.active_legend).any?
-
-      if active_legend.player_count == 1 &&
-        active_legend.player_legends.count == 1
-        spawn_bot(active_legend)
-      end
-
-      if active_legend.created? &&
-        active_legend.active_players.count >= 2
-        active_legend.started!
-      end
-    end
   end
 end

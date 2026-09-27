@@ -28,4 +28,6 @@
 #       enabled: "ON"
 
 en:
+  errors:
+    invalid: "invalid email address or password"
   hello: "Hello world"
