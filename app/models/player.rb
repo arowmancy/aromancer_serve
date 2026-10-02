@@ -107,17 +107,6 @@ class Player < ApplicationRecord
     end
   end
 
-  def hint
-    return unless active_legend.present?
-    return unless active_legend.current&.turn_player_id == self.id
-
-    prioritize_point_values
-  end
-
-  def prioritize_point_values
-
-  end
-
   private
 
   def self.spawn_bot(legend)

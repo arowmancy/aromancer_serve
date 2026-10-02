@@ -1,6 +1,7 @@
+puts `rm storage/test.sqlite3 && bin/rails db:create db:migrate RAILS_ENV=test`
+sleep(1)
 # This file is copied to spec/ when you run 'rails generate rspec:install'
 require 'spec_helper'
-require 'database_cleaner/active_record'
 
 ENV['RAILS_ENV'] ||= 'test'
 require_relative '../config/environment'
@@ -72,6 +73,4 @@ RSpec.configure do |config|
   config.filter_rails_from_backtrace!
   # arbitrary gems may also be filtered via:
   # config.filter_gems_from_backtrace("gem name")
-
-  DatabaseCleaner.strategy = :transaction
 end

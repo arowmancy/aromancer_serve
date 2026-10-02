@@ -12,8 +12,6 @@ class Legend < ApplicationRecord
   validates :story_count, numericality: { greater_than: Legend::MIN_STORY_COUNT - 1 }
   validates :player_count, numericality: { in: Legend::MIN_PLAYERS..Legend::MAX_PLAYERS }
 
-  # after_create :start
-
   enum :status, [
     :created,
     :started,
@@ -39,12 +37,6 @@ class Legend < ApplicationRecord
   def start
     return unless active_players.count > 0
 
-    last_story = stories.last
-    if last_story.present?
-      return unless last_story.chapters.where(is_final: true).empty?
-      last_story.finalize
-    end
-
     if stories.count < story_count
       if stories.count == 0
         # player setup
@@ -55,8 +47,6 @@ class Legend < ApplicationRecord
         if player_count == 1 &&
           player_legends.count == 1
           bot = Player.spawn_bot(self)
-          puts "here" * 111
-          puts bot.errors.full_messages
           player_legends.create(player: bot)
         end
 
@@ -73,8 +63,10 @@ class Legend < ApplicationRecord
 
       return next_story.chapters.first
     else
-      # todo: winner/stats
+      stories.last.finalize
       complete!
+
+      return stories.last.chapters.last
     end
   end
 end
