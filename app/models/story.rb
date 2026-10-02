@@ -9,9 +9,6 @@ class Story < ApplicationRecord
   def start
     return if chapters.where(is_final: true).present?
 
-    Rails.logger.error "TODO: fix duplicate dictionary issue."
-    # todo:
-
     Dictionary.create(story: self) if dictionary.nil?
 
     dealer = legend.players.where.not(id: chapters&.last&.dealer_id).first || legend.players.first
@@ -34,6 +31,7 @@ class Story < ApplicationRecord
   end
 
   def finalize
+    return unless winner.nil?
     # end of story
     final_chapter = chapters.last
     return unless final_chapter.present? && final_chapter.is_final
@@ -73,7 +71,8 @@ class Story < ApplicationRecord
     final_chapter.save
 
     # todo: set story winner
-    # stories.last.update(winner: write_a_method_to_get_this_based_on_signed_sentences)
+    # todo: write_a_method_to_get_this_based_on_signed_sentences)
+    update(winner: scroll_winner) # just using scroll_winner for now
 
   end
 end

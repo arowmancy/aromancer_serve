@@ -17,6 +17,10 @@ class Player < ApplicationRecord
     :playing,
   ]
 
+  def set_api_key
+    self.api_key = Random.uuid
+  end
+
   def current_game_json
     active_legend.current.current_state_json(self)
   end
@@ -113,10 +117,6 @@ class Player < ApplicationRecord
     bot = Player.create(type: BotPlayer, active_legend: legend)
     bot.update(alias: "bot#{bot.id}", status: :playing)
     bot
-  end
-
-  def set_api_key
-    self.api_key = Random.uuid
   end
 
   def check_alias

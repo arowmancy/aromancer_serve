@@ -33,6 +33,7 @@ module Authentication
       @api_player = user.player
       @api_player.set_api_key
       @api_player.save
+      @api_player.reload
     end
 
     def terminate_session

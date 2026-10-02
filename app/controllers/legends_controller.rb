@@ -13,7 +13,6 @@ class LegendsController < ApplicationController
 
   def create
     @legend = Legend.new(legend_params)
-
     if @legend.save
       render json: @legend, status: :created
     else

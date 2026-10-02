@@ -3,10 +3,10 @@ class Word < ApplicationRecord
   # "top" of face-down deck is lowest order_index
   default_scope { order(order_index: :asc) }
   has_many :entries
-  has_many :player_words
-  has_many :players, through: :player_words
-  has_many :sentence_words
-  has_many :sentences, through: :sentence_words
+  # has_many :player_words
+  # has_many :players, through: :player_words
+  # has_many :sentence_words
+  # has_many :sentences, through: :sentence_words
 
   belongs_to :dictionary
 
@@ -25,6 +25,49 @@ class Word < ApplicationRecord
     :pentacles,
     :wands,
   ]
+  def player
+    @player
+  end
+
+  def story
+    dictionary.story
+  end
+
+  def chapter
+    story.current_chapter
+  end
+
+  def player_words
+    return [] unless player.present? && chapter.present?
+    dictionary.words.where(id: chapter.player_words.where(player: player).pluck(:word_id))
+  end
+
+  def numeric_player_words
+    player_words.where(style: :number).where.not(id: self.id)
+  end
+
+  def scroll_words
+    return [] unless chapter.present?
+    dictionary.words.where(id: chapter.scroll_words.pluck(:word_id))
+  end
+
+  def scroll_sentences
+    return [] unless chapter.present?
+    chapter.unsigned_sentences
+  end
+
+  def self_sentence
+    return nil unless chapter.present?
+    chapter.sentences.where(id: SentenceWord.where(word_id: self.id).pluck(:sentence_id)).first
+  end
+
+  # if self is used in a sentence,
+  # return self_sentence.value else return self.value
+  def absolute_value
+    return self_sentence.value unless self_sentence.nil?
+
+    self.value
+  end
 
   def to_s
     "the #{number? ? value : style} of #{suit}."
@@ -60,106 +103,88 @@ class Word < ApplicationRecord
     }
   end
 
-  def possibilities(player)
-    return [] unless player.present?
-    #
-    # returns list of possible actions for self scoped to player
-    #
-    # list of possible self contextual reference points:
-    #   :player word
-    #   :scroll word
-    #   :sentence word
-    #
-    #
-    # TODO: use permutations:
-    #   example:
-    #   result = [1, 2, 3, 4].permutation(2).select { |p| p.sum == 5 }
-    #   p result # => [[1, 4], [2, 3], [3, 2], [4, 1]]
+  def possibility_for_type
+    return @for_type unless @for_type.nil?
 
-    can_sign = []
-    can_combine = []
-    can_stack = []
+    # self is a player word
+    for_type = :player_word if player_words.include?(self)
+    # self is a scroll word
+    for_type = :scroll_word if scroll_words.include?(self) if !for_type
+    # self is a scroll sentence
+    for_type = :scroll_sentence if SentenceWord.where(sentence_id: scroll_sentences.pluck(:id)).pluck(:word_id).include?(self.id) if !for_type
 
-    c = dictionary.story.current_chapter
+    @for_type = for_type
+    @for_type
+  end
 
-    player_words = dictionary.words.where(id: c.player_words.where(player: player).pluck(:word_id))
-    numeric_player_words = player_words.where.not(id: self.id).where(style: :number)
-    words_on_scroll = c.scroll_words.where.not(word: self).map{|sw| sw.word}
+  def signature_matcher(words)
+    words.select{|w|
+      (number? && self.absolute_value == w.value) ||
+      !number? && self.style == w.style
+    }
+  end
 
-    for_type = :player_word if player_words.pluck(:id).include?(self.id)
-    for_type = :scroll_word if c.scroll_words.pluck(:word_id).include?(self.id)
-    for_type = :scroll_sentence if SentenceWord.where(sentence_id: c.unsigned_sentences.pluck(:id)).pluck(:word_id).include?(self.id)
-
-    case for_type
+  def can_sign_options
+    case possibility_for_type
     when :player_word
       #
-      #   all scroll words and sentences that equal self.value
+      # => get all scroll words and sentences that equal self.value
       #
       #     can_sign =
       #       self.value == scroll_word.value || self.value == scroll_sentence.value
       #
+      return signature_matcher(scroll_words) +
+        scroll_sentences.select{|ss| number? && self.absolute_value == ss.value}
+    when :scroll_word, :scroll_sentence
+      # when :scroll_word
       #
-      can_sign += words_on_scroll.select{|w| (number? && self.value == w.value) || !number? && self.style == w.style}
-      can_sign += c.unsigned_sentences.select{|us| number? && self.value == us.value}
-
-      if number?
-        #   all scroll words and sentences that sum to value of any other player word.
-        #
-        #     can_combine =
-        #       self.value + scroll_word.value == any_player_word.value ||
-        #       self.value + sentence.value == any_player_word.value
-        #
-        #
-        #   note: only do this if self's style is number. no combining face cards right now
-        #
-        #
-
-        can_combine += words_on_scroll.select{|w|
-          w.number? && player_words.where.not(id: self.id).where(style: :number).any?{|pw|
-            pw.value == self.value + w.value
-          }
-        }
-
-        can_combine += c.unsigned_sentences.select{|us|
-          player_words.any?{|pw|
-            pw.number? && number? && pw.value == self.value + us.value
-          }
-        }
-
-        #
-        #   all scroll/player words and sentences that can form a stack
-        #
-        #     can_stack = self.value == scroll_word.value && any_other_player_card.value == self.value ||
-        #       self.value == sentence.value && any_other_player_card.value == self.value ||
-        #
-        #
-        #
-        can_stack += words_on_scroll.select{|w|
-          w.number? && (
-            self.value == w.value && numeric_player_words.select{|pw|
-              pw.value == w.value
-            }.length >= 1
-          )
-        }
-        can_stack += c.unsigned_sentences.select{|us|
-          self.value == us.value && numeric_player_words.select{|pw|
-            pw.value == us.value
-          }.length >= 1
-        }
-      end
-
-    when :scroll_word
-      #
-      #   all player words that equal self.value
+      # => get all player words that equal self.value
       #
       #     can_sign =
       #       self.value == player_word.value
       #
       #
-      can_sign += player_words.select{|w| (number? && self.value == w.value) || !number? && self.style == w.style}
 
+      # when :scroll_sentence
       #
-      #   all player/scroll words and sentences that sum to == value of other player word.
+      # => all player words that equal self.sentence.value
+      #
+      #     can_sign =
+      #       self.sentence.value == player_word.value
+      #
+
+      return signature_matcher(player_words)
+    end
+  end
+
+  def can_combine_options
+    return [] unless number?
+
+    case possibility_for_type
+    when :player_word
+      #
+      # => all scroll words and sentences that sum to value of any other player word.
+      #
+      #     can_combine =
+      #       self.value + scroll_word.value == any_player_word.value ||
+      #       self.value + sentence.value == any_player_word.value
+      #
+      #
+      #   note: only do this if self's style is number. no combining face cards right now
+      #
+      #
+      return scroll_words.select{|w|
+        w.number? && player_words.where.not(id: self.id).where(style: :number).any?{|pw|
+          pw.value == self.absolute_value + w.value
+        }
+      } + scroll_sentences.select{|ss|
+        player_words.any?{|pw|
+          pw.number? && pw.value == self.absolute_value + ss.value
+        }
+      }
+    when :scroll_word
+      #
+      # => all player/scroll words and sentences that sum to == value of other player word.
       #
       #     can_combine =
       #       self.value + player_word.value == any_player_word.value ||
@@ -169,49 +194,25 @@ class Word < ApplicationRecord
       #       self.value + unsigned_sentences.value + any_player_word.value == any_other_player_word.value
       #
       #
-      if number?
-        can_combine += player_words.select{|w|
-          w.number? && numeric_player_words.any?{|pw|
-            pw.value == self.value + w.value
-          }
+      return player_words.select{|w|
+        w.number? && numeric_player_words.any?{|pw|
+          pw.value == self.absolute_value + w.value
         }
-        can_combine += words_on_scroll.select{|w|
-          w.number? && numeric_player_words.any?{|pw|
-            sum = [pw.value, self.value, w.value].sum
-            pw.value == self.value + w.value ||
-            numeric_player_words.any?{|ppw| ppw.value == sum}
-          }
+      } + scroll_words.select{|w|
+        w.number? && numeric_player_words.any?{|pw|
+          sum = [pw.value, self.absolute_value, w.value].sum
+          pw.value == self.absolute_value + w.value ||
+          numeric_player_words.any?{|ppw| pw.id != ppw.id && ppw.value == sum}
         }
-        can_combine += c.unsigned_sentences.select{|us|
-          numeric_player_words.any?{|pw|
-            sum = [pw.value, self.value, us.value].sum
-            pw.value == self.value + us.value ||
-            numeric_player_words.any?{|ppw| ppw.value == sum}
-          }
+      } + scroll_sentences.select{|ss|
+        numeric_player_words.any?{|pw|
+          sum = [pw.value, self.absolute_value, ss.value].sum
+          pw.value == self.absolute_value + ss.value ||
+          numeric_player_words.any?{|ppw| pw.id != ppw.id && ppw.value == sum}
         }
-
-        #
-        #   all scroll/player words and sentences that can form a stack
-        #
-        #     can_stack = #todo self.value == scroll_word.value && any_other_player_card.value == self.value ||
-        #       self.value == #todo sentence.value && any_other_player_card.value == self.value ||
-        #
-        #
-        #
-        # todo:
-
-      end
+      }
     when :scroll_sentence
-      self_sentence = c.unsigned_sentences.where(id: sentence_words.pluck(:sentence_id)).first
-      #
-      #   all player words that equal self.sentence.value
-      #
-      #     can_sign =
-      #       self.sentence.value == player_word.value
-      #
-      can_sign += player_words.select{|w| (number? && self_sentence.value == w.value) || !number? && self.style == w.style}
-
-      #   all player/scroll words and sentences that sum to == value of other player word.
+      # => all player/scroll words and sentences that sum to == value of other player word.
       #
       #     can_combine =
       #       self.sentence.value + player_word.value == any_player_word.value ||
@@ -219,24 +220,57 @@ class Word < ApplicationRecord
       #       self.sentence.value + unsigned_sentences.value == any_player_word.value
       #
       #
-      can_combine += player_words.select{|w|
+      return player_words.select{|w|
         w.number? && numeric_player_words.any?{|pw|
           pw.value == self_sentence.value + w.value
         }
-      }
-      can_combine += words_on_scroll.select{|w|
+      } + scroll_words.select{|w|
         w.number? && numeric_player_words.any?{|pw|
           pw.value == self_sentence.value + w.value
         }
-      }
-      can_combine += c.unsigned_sentences.select{|us|
+      } + scroll_sentences.select{|ss|
         numeric_player_words.any?{|pw|
-          sum = [pw.value, self.value, us.value].sum
-          pw.value == self_sentence.value + us.value ||
-          numeric_player_words.any?{|ppw| ppw.value == sum}
+          sum = [pw.value, self.absolute_value, ss.value].sum
+          pw.value == self_sentence.value + ss.value ||
+          numeric_player_words.any?{|ppw| pw.id != ppw.id && ppw.value == sum}
         }
       }
+    end
+  end
 
+  def can_stack_options
+    return [] unless number?
+
+    case possibility_for_type
+    when :player_word
+      #
+      # => all scroll/player words and sentences that can form a stack
+      #
+      #     can_stack = self.value == scroll_word.value && any_other_player_card.value == self.value ||
+      #       self.value == sentence.value && any_other_player_card.value == self.value ||
+      #
+      return scroll_words.select{|w|
+        w.number? && (
+          self.absolute_value == w.value && numeric_player_words.select{|pw|
+            pw.value == w.value
+          }.length >= 1
+        )
+      } + scroll_sentences.select{|ss|
+        self.absolute_value == ss.value && numeric_player_words.select{|pw|
+          pw.value == ss.value
+        }.length >= 1
+      }
+    when :scroll_word
+      #
+      #   all scroll/player words and sentences that can form a stack
+      #
+      #     can_stack = #todo self.value == scroll_word.value && any_other_player_card.value == self.value ||
+      #       self.value == #todo sentence.value && any_other_player_card.value == self.value ||
+      #
+      #
+      #
+      # todo:
+    when :scroll_sentence
       #
       #   all scroll/player words and sentences that can form a stack
       #
@@ -247,30 +281,149 @@ class Word < ApplicationRecord
       #
       # todo:
 
+      return []
     end
+  end
+
+  def possibilities(player)
+    return [] unless player.present?
+    @player = player
 
     mapper = Proc.new{|action, o|
       s = nil
+      http_verb = :post
+      payload = {}
       if o.kind_of?(Sentence)
         s = o
       end
       w = o if s.nil?
+      case action
+      when :can_sign
+        if s.nil?
+          if self_sentence.nil?
+            # create new sentence & sign with self
+            payload = {
+              word_id: self.id,
+              sentence: {
+                signature_id: self.id,
+                word_ids: [w.id]
+              }
+            }
+          else
+            # sign self_sentence with w
+            payload = {
+              sentence_id: self_sentence.id,
+              sentence: {
+                signature_id: w.id
+              }
+            }
+          end
+        else
+          payload = {
+            sentence_id: s.id,
+            sentence: {
+              signature_id: self.id
+            }
+          }
+        end
+      when :can_combine
+        if s.nil?
+          if self_sentence.nil?
+            # combine self with w
+            payload = {
+              word_id: self.id,
+              sentence: {
+                word_ids: [self.id, w.id]
+              }
+            }
+          else
+            # add w to self_sentence
+            payload = {
+              sentence_id: self_sentence.id,
+              sentence: {
+                word_ids: self_sentence.words.pluck(:id) + [w.id]
+              }
+            }
+          end
+        else
+          if self_sentence.nil?
+            # add self to s
+            payload = {
+              sentence_id: s.id,
+              sentence: {
+                word_ids: s.words.pluck(:id) + [self.id]
+              }
+            }
+          else
+            # merge self_sentence & s
+            http_verb = :put
+            payload = {
+              sentence_ids: [self_sentence.id, s.id],
+              value: self_sentence.value
+            }
+          end
+        end
+      when :can_stack
+
+        if s.nil?
+          if self_sentence.nil?
+            # combine self with w
+            payload = {
+              word_id: self.id,
+              sentence: {
+                word_ids: [self.id, w.id],
+                is_stack: true
+              }
+            }
+          else
+            # add w to self_sentence
+            payload = {
+              sentence_id: self_sentence.id,
+              sentence: {
+                word_ids: self_sentence.words.pluck(:id) + [w.id],
+                is_stack: true
+              }
+            }
+          end
+        else
+          if self_sentence.nil?
+            # add self to s
+            payload = {
+              sentence_id: s.id,
+              sentence: {
+                word_ids: s.words.pluck(:id) + [self.id],
+                is_stack: true
+              }
+            }
+          else
+            # merge self_sentence & s
+            http_verb = :put
+            payload = {
+              sentence_ids: [self_sentence.id, s.id],
+              value: self_sentence.value,
+              is_stack: true
+            }
+          end
+        end
+      end
 
       {
         action: action,
         word: w&.json_card,
-        sentence: s&.json_sentence
+        sentence: s&.json_sentence,
+        payload: payload.to_json,
+        http_verb: http_verb
       }
     }
 
     result = []
-    result += can_sign.map{|o| mapper.call(:can_sign, o)}
-    result += can_combine.map{|o| mapper.call(:can_combine, o)}
-    result += can_stack.map{|o| mapper.call(:can_stack, o)}
+    result += (can_sign_options || []).map{|o| puts o; mapper.call(:can_sign, o)}
+    result += (can_combine_options || []).map{|o| mapper.call(:can_combine, o)}
+    result += (can_stack_options || []).map{|o| mapper.call(:can_stack, o)}
 
     {
       word: self.json_card,
-      for_type: for_type,
+      for_type: possibility_for_type,
       options: result
     }
   end
