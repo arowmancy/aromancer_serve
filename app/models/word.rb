@@ -3,10 +3,8 @@ class Word < ApplicationRecord
   # "top" of face-down deck is lowest order_index
   default_scope { order(order_index: :asc) }
   has_many :entries
-  # has_many :player_words
-  # has_many :players, through: :player_words
-  # has_many :sentence_words
-  # has_many :sentences, through: :sentence_words
+  has_many :sentence_words
+  has_many :sentences, through: :sentence_words
 
   belongs_to :dictionary
 
@@ -99,7 +97,8 @@ class Word < ApplicationRecord
       suit_display: suit.upcase,
       value: value,
       suit: suit,
-      style: style
+      style: style,
+      humanized: to_s
     }
   end
 
@@ -189,9 +188,7 @@ class Word < ApplicationRecord
       #     can_combine =
       #       self.value + player_word.value == any_player_word.value ||
       #       self.value + scroll_word.value == any_player_word.value ||
-      #       self.value + scroll_word.value + any_player_word.value == any_other_player_word.value ||
       #       self.value + unsigned_sentences.value == any_player_word.value ||
-      #       self.value + unsigned_sentences.value + any_player_word.value == any_other_player_word.value
       #
       #
       return player_words.select{|w|
@@ -200,15 +197,11 @@ class Word < ApplicationRecord
         }
       } + scroll_words.select{|w|
         w.number? && numeric_player_words.any?{|pw|
-          sum = [pw.value, self.absolute_value, w.value].sum
-          pw.value == self.absolute_value + w.value ||
-          numeric_player_words.any?{|ppw| pw.id != ppw.id && ppw.value == sum}
+          pw.value == self.absolute_value + w.value
         }
       } + scroll_sentences.select{|ss|
         numeric_player_words.any?{|pw|
-          sum = [pw.value, self.absolute_value, ss.value].sum
-          pw.value == self.absolute_value + ss.value ||
-          numeric_player_words.any?{|ppw| pw.id != ppw.id && ppw.value == sum}
+          pw.value == self.absolute_value + ss.value
         }
       }
     when :scroll_sentence
@@ -230,9 +223,7 @@ class Word < ApplicationRecord
         }
       } + scroll_sentences.select{|ss|
         numeric_player_words.any?{|pw|
-          sum = [pw.value, self.absolute_value, ss.value].sum
-          pw.value == self_sentence.value + ss.value ||
-          numeric_player_words.any?{|ppw| pw.id != ppw.id && ppw.value == sum}
+          pw.value == self_sentence.value + ss.value
         }
       }
     end
@@ -247,29 +238,45 @@ class Word < ApplicationRecord
       # => all scroll/player words and sentences that can form a stack
       #
       #     can_stack = self.value == scroll_word.value && any_other_player_card.value == self.value ||
-      #       self.value == sentence.value && any_other_player_card.value == self.value ||
+      #       self.value == sentence.value && any_other_player_card.value == self.value
       #
       return scroll_words.select{|w|
         w.number? && (
           self.absolute_value == w.value && numeric_player_words.select{|pw|
             pw.value == w.value
-          }.length >= 1
+          }.any?
         )
       } + scroll_sentences.select{|ss|
         self.absolute_value == ss.value && numeric_player_words.select{|pw|
           pw.value == ss.value
-        }.length >= 1
+        }.any?
       }
     when :scroll_word
       #
-      #   all scroll/player words and sentences that can form a stack
+      # => all scroll/player words and sentences that can form a stack
       #
-      #     can_stack = #todo self.value == scroll_word.value && any_other_player_card.value == self.value ||
-      #       self.value == #todo sentence.value && any_other_player_card.value == self.value ||
+      #     can_stack = self.value == player_word.value && any_other_player_card.value == self.value ||
+      #       self.value == scroll_word.value && any_other_player_card.value == self.value ||
+      #       self.value == sentence.value && any_other_player_card.value == self.value
       #
       #
-      #
-      # todo:
+      return player_words.select{|w|
+        w.number? && (
+          self.absolute_value == w.value && numeric_player_words.select{|pw|
+            pw.value == w.value
+          }.any?
+        )
+      } + scroll_words.select{|w|
+        w != self && w.number? && (
+          self.absolute_value == w.value && numeric_player_words.select{|pw|
+            pw.value == w.value
+          }.any?
+        )
+      } + scroll_sentences.select{|ss|
+        self.absolute_value == ss.value && numeric_player_words.select{|pw|
+          pw.value == ss.value
+        }.any?
+      }
     when :scroll_sentence
       #
       #   all scroll/player words and sentences that can form a stack
@@ -417,7 +424,7 @@ class Word < ApplicationRecord
     }
 
     result = []
-    result += (can_sign_options || []).map{|o| puts o; mapper.call(:can_sign, o)}
+    result += (can_sign_options || []).map{|o| mapper.call(:can_sign, o)}
     result += (can_combine_options || []).map{|o| mapper.call(:can_combine, o)}
     result += (can_stack_options || []).map{|o| mapper.call(:can_stack, o)}
 

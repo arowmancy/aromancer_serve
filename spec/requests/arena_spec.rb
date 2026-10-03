@@ -75,7 +75,6 @@ RSpec.describe "the aromancer arena api" do
     p2 = Player.find_by(alias: :p2)
     d = legend.current.story.dictionary
 
-
     get "/legends/#{legend.id}/arena?api_key=#{p1.api_key}"
     expect(response.status).to eq(200)
     p1_response = JSON.parse(response.body)
@@ -88,78 +87,51 @@ RSpec.describe "the aromancer arena api" do
     expect(p2_response[:player.to_s][:id.to_s]).to eq(p2.id)
 
     chapter = 0
-    turn_count = 0
-    turn_map = [
-      { #p2
-        words: d.get_word(:t1)
-      },
-      { #p1
-        words: d.get_word(:t2)
-      },
-      { #p2
-        words: d.get_word(:t4)
-      },
-      [ #p1
-        {
-          action: :combine,
-          words: [d.get_word(:t1), d.get_word(:t2)]
-        },
-        {
-          words: d.get_word(:t5)
-        }
-      ]
-    ]
     while legend.reload.current.present? && legend.reload.started?
       if legend.current.nzindex_number > chapter
         chapter = legend.current.nzindex_number
         # puts "\tchapter #{chapter}"
       end
-
-      play_turn(turn_count < turn_map.length ? turn_map[turn_count] : nil, legend, p1, p2)
-      turn_count += 1
+      play_turn(legend, p1, p2)
     end
 
-    # puts JSON.pretty_generate legend.current.current_state_json(p1)
-    # puts JSON.pretty_generate legend.current.current_state_json(p2)
+    puts JSON.pretty_generate p1.current_game_json
+    puts JSON.pretty_generate p2.current_game_json
+    puts legend.reload.status
   end
 
-  def play_turn(turns, legend, p1, p2)
-    turns = [turns] unless turns.kind_of?(Array)
+  def play_turn(legend, p1, p2)
     tp = legend.current.turn_player
-    url = "/legends/#{legend.id}/arena?api_key=#{tp.api_key}"
-    params = {word_id: legend.current.player_words.where(player: tp).first.word_id}.to_json
-    turns.each{|turn|
-      if turn.present?
-        if turn[:action].nil?
-          # default
-          params = {
-            word_id: turn[:words].id # expects :words to contain Word instance
-          }.to_json
-        else
-          case turn[:action]
-          when :combine
-            params = {
-              word_id: turn[:words][1].id, # not abstract at all
-              sentence: {
-                word_ids: turn[:words].map{|w| w.id} # expects :words to contain [Word] array
-              }
-            }.to_json
-          when :sign
-            params = {
-              sentence_id: Sentence.last.id,
-              sentence: {
-                signature_id: turn[:words].id # expects :words to contain Word instance
-              }
-            }.to_json
-          end
-        end
+    params = {}
+    wid = nil
+    tp_word_ids = legend.current.player_words.where(player: tp).pluck(:word_id)
+    rand(1..11).times do |i|
+      wid = tp_word_ids.sample
+    end
+    get "/legends/#{legend.id}/words/#{wid}/possibilities?api_key=#{tp.api_key}", headers: HEADERS
+    possible = JSON.parse(response.body)
+    puts possible["word"]["humanized"]
+    # puts "possible.for_type: #{possible["for_type"]}"
+    # puts "possible.word: #{possible["word"]}"
+    # puts "possible.options: #{possible["options"]}"
+    # puts JSON.pretty_generate possible
+    if possible["options"].any?
+      payload = nil
+      rand(1..11).times do |i|
+        payload = possible["options"].sample["payload"]
       end
-      # puts params
-      post url, params: params, headers: HEADERS
-      # post_response = JSON.parse(response.body)
-      # puts post_response
-      expect(response.status).to eq(201)
-    }
+      parsed_payload = JSON.parse(payload)
+      params = {arena: parsed_payload}
+    else
+      params = {arena: {word_id: wid}}
+    end
+
+    # puts params
+    url = "/legends/#{legend.id}/arena?api_key=#{tp.api_key}"
+    post url, params: params.to_json, headers: HEADERS
+    # post_response = JSON.parse(response.body)
+    # puts post_response
+    expect(response.status).to eq(201)
   end
 
   def put_request_player_status(player, status = :none, active_legend_id = nil)

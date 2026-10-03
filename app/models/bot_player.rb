@@ -22,7 +22,8 @@ class BotPlayer < Player
       submit_turn(Word.find(face_cards.first.id))
     else
       # todo: more bot logic
-      submit_turn(words.first)
+
+      submit_turn(words.sample)
     end
   end
 end
