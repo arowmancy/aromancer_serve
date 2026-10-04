@@ -28,5 +28,7 @@ module AromancerServer
     # Middleware like session, flash, cookies can be added back manually.
     # Skip views, helpers and assets when generating a new resource.
     config.api_only = true
+
+    config.action_cable.worker_pool_size = 4
   end
 end

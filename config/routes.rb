@@ -1,4 +1,6 @@
 Rails.application.routes.draw do
+  mount ActionCable.server => :"/broadcast".to_s
+
   resource :session, only: [:create, :destroy]
   resource :users, only: [:create]
   resources :passwords, param: :token

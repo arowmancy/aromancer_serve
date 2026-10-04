@@ -9,7 +9,6 @@ class BotPlayer < Player
     return unless active_legend.started?
     return unless active_legend.current.turn_player.id == self.id
 
-    # i look at my cards
     words = Word.where(
       id: active_legend.current.player_words.where(player: self).pluck(:word_id)
     )
@@ -21,10 +20,9 @@ class BotPlayer < Player
     retries = 0
     while option.nil? && retries <= max_retries
       possibilities = words.sample.possibilities(self)
-      Rails.logger.info possibilities.inspect
+      # Rails.logger.info possibilities.inspect
       option = possibilities[:options].select{|o| !o[:payload].blank?}.sample
-      Rails.logger.info "here " * 111
-      Rails.logger.info option.inspect
+      # Rails.logger.info option.inspect
       retries += 1 if option.nil?
     end
 

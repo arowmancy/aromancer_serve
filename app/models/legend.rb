@@ -57,13 +57,14 @@ class Legend < ApplicationRecord
           player_legends.create(player: bot)
         end
 
-        started! if created? && player_count == active_players.count
+        started! if created? && active_players.count == 2
       end
 
       return nil unless started?
+      reload
 
       # stories++
-      next_story = stories.create
+      next_story = stories.create(dealer: active_players.where.not(id: stories&.last&.dealer_id).first || active_players.first)
       next_story.save
       next_story.start
 
@@ -71,6 +72,10 @@ class Legend < ApplicationRecord
     else
       stories.last.finalize
       complete!
+
+      active_players.each{|p|
+        PlayerChannel.broadcast_to(p, {type: :arena, id: self.id})
+      }
 
       return stories.last.chapters.last
     end

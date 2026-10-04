@@ -4,21 +4,26 @@ class Story < ApplicationRecord
   has_many :chapters
   has_one :dictionary
 
+  # dealer alternates across each story in a legend
+  belongs_to :dealer, class_name: :Player, foreign_key: :dealer_id
+
   TOTAL_POINTS = 11.to_f
 
   def start
-    return if legend.player_legends.count != legend.player_count
+    return if legend.active_players.count != 2
     return if chapters.where(is_final: true).present?
 
     Dictionary.create(story: self) if dictionary.nil?
 
-    dealer = legend.players.where.not(id: chapters&.last&.dealer_id).first || legend.players.first
     last_scroll_words = chapters.last&.scroll_words || []
     last_unsigned_sentences = chapters.last&.unsigned_sentences || []
     @current_chapter = chapters.create(
-      dealer: dealer,
       turn_player: legend.players.where.not(id: dealer.id).first
     )
+
+    legend.active_players.each{|p|
+      PlayerChannel.broadcast_to(p, {type: :arena, id: legend.id})
+    }
 
     last_scroll_words&.update_all(chapter_id: @current_chapter.id) if last_scroll_words.any?
     last_unsigned_sentences&.update_all(chapter_id: @current_chapter.id) if last_unsigned_sentences.any?

@@ -63,6 +63,7 @@ class Player < ApplicationRecord
       else
         if sign
           sentence.signature = word
+          sentence.author = self
           entry.update(description: (entry.description || "") + " signed sentence: #{sentence.to_json}")
         end
         sentence.is_stack = is_stack
@@ -104,6 +105,7 @@ class Player < ApplicationRecord
       next_id = active_legend.players.where.not(id: self.id).order(id: :asc).first.id
       active_legend.current.update(turn_player_id: next_id)
       active_legend.reload
+      PlayerChannel.broadcast_to(active_legend.current.turn_player, {type: :arena, id: active_legend.id})
 
       # poke the bot player
       BotPlayer.find_by(id: next_id)&.poke

@@ -14,11 +14,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_27_013928) do
   create_table "chapters", force: :cascade do |t|
     t.boolean "is_final", default: false
     t.integer "story_id", null: false
-    t.integer "dealer_id", null: false
     t.integer "turn_player_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["dealer_id"], name: "index_chapters_on_dealer_id"
     t.index ["story_id"], name: "index_chapters_on_story_id"
     t.index ["turn_player_id"], name: "index_chapters_on_turn_player_id"
   end
@@ -35,7 +33,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_27_013928) do
     t.integer "player_id"
     t.integer "word_id"
     t.integer "action", default: 0
-    t.string "description"
+    t.string "description", default: ""
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["chapter_id"], name: "index_entries_on_chapter_id"
@@ -138,8 +136,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_27_013928) do
   create_table "stories", force: :cascade do |t|
     t.integer "legend_id", null: false
     t.integer "winner_id"
+    t.integer "dealer_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["dealer_id"], name: "index_stories_on_dealer_id"
     t.index ["legend_id"], name: "index_stories_on_legend_id"
     t.index ["winner_id"], name: "index_stories_on_winner_id"
   end

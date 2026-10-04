@@ -37,9 +37,6 @@ class Chapter < ApplicationRecord
   # the story that this chapter belongs to
   belongs_to :story
 
-  # dealer alternates across each story in a legend
-  belongs_to :dealer, class_name: :Player, foreign_key: :dealer_id
-
   belongs_to :turn_player, class_name: :Player, foreign_key: :turn_player_id
 
   def start
@@ -49,7 +46,7 @@ class Chapter < ApplicationRecord
       nds.each{|nd| deal_one_card(nd)}
 
       # deal to dealer
-      deal_one_card(dealer)
+      deal_one_card(story.dealer)
     end
 
     # poke the bots
@@ -98,7 +95,7 @@ class Chapter < ApplicationRecord
   def current_state_json(for_player)
     {
       title: "#{self.class.name.downcase} #{nzindex_number}",
-      dealer: player_json(dealer).except(:words),
+      dealer: player_json(story.dealer).except(:words),
       turn_player: player_json(turn_player).except(:words),
       scroll_words: unwritten_words.sort_by{|w| [w.value, w.suit]}.map{|w| w.json_card},
       sentences: unsigned_sentences.map{|s| s.json_sentence},
@@ -146,12 +143,13 @@ class Chapter < ApplicationRecord
   end
 
   def non_dealers
-    @non_dealers ||= story.legend.players.where.not(id: dealer.id)
+    @non_dealers ||= story.legend.players.where.not(id: story.dealer.id)
   end
 
   # non-zero-based indexing (eg 1,2,3...)
   def nzindex_number
-    (self.id - story.chapters.first.id) + 1
+    story.chapters.pluck(:id).index(self.id) + 1
+    # (self.id - story.chapters.first.id) + 1
   end
 end
 
