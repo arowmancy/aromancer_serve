@@ -22,7 +22,15 @@ class Player < ApplicationRecord
   end
 
   def current_game_json
-    active_legend.current.current_state_json(self)
+    unless active_legend.present?
+      return {title: "loading..."}
+    end
+
+    if active_legend.current.present? && active_legend.started?
+      active_legend.current.current_state_json(self)
+    else
+      active_legend.waiting_room
+    end
   end
 
   # expects word to be the "signature card" if sign = true
@@ -89,23 +97,14 @@ class Player < ApplicationRecord
     end
 
     if is_playing_turn
-      # if add_scroll_word succeeds, update turn player
       active_legend.current.add_scroll_word(self, word) unless sentence.present? # already took care of it
 
-      # set next player
-      # only supports 2 or 3 players
       return unless active_legend.current.unspoken_words.any?
 
-      next_id = active_legend.current.non_dealers.first.id
-      if self.id != active_legend.current.dealer_id
-        pids = active_legend.current.story.legend.players.pluck(:id).to_a
-        next_id = self.id + 1
-        if !pids.include?(next_id)
-          next_id = pids.min + (pids.min == self.id ? 1 : 0)
-        end
-      end
+      next_id = active_legend.players.where.not(id: self.id).order(id: :asc).first.id
       active_legend.current.update(turn_player_id: next_id)
       active_legend.reload
+
       # poke the bot player
       BotPlayer.find_by(id: next_id)&.poke
     end

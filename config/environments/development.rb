@@ -4,7 +4,7 @@ Rails.application.configure do
   # Settings specified here will take precedence over those in config/application.rb.
 
   # development default override
-  config.log_level = :info # :debug, :info, :warn, :error, :fatal, :unknown
+  config.log_level = :debug # :debug, :info, :warn, :error, :fatal, :unknown
 
   # Make code changes take effect immediately without server restart.
   config.enable_reloading = true

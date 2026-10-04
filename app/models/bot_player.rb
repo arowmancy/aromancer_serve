@@ -1,4 +1,7 @@
+require_relative "../controllers/concerns/arena"
+
 class BotPlayer < Player
+  include Arena
 
   def poke
 
@@ -8,22 +11,39 @@ class BotPlayer < Player
 
     # i look at my cards
     words = Word.where(
-      id: active_legend.current.player_words.where(player: self).pluck(:word_id).to_a
+      id: active_legend.current.player_words.where(player: self).pluck(:word_id)
     )
 
     return unless words.any?
 
-    # grab the face cards
-    face_cards = words.reject{|word| word.number?}
+    option = nil
+    max_retries = rand(11..22)
+    retries = 0
+    while option.nil? && retries <= max_retries
+      possibilities = words.sample.possibilities(self)
+      Rails.logger.info possibilities.inspect
+      option = possibilities[:options].select{|o| !o[:payload].blank?}.sample
+      Rails.logger.info "here " * 111
+      Rails.logger.info option.inspect
+      retries += 1 if option.nil?
+    end
 
-    if face_cards.any?
-      # if i have a face card, i will play it for now
-      # todo: more bot logic
-      submit_turn(Word.find(face_cards.first.id))
+    if option.present?
+      # valid word option
+      arena = JSON.parse(option[:payload]).symbolize_keys
+      Rails.logger.info arena.inspect
+
+      if option[:http_verb] == :post
+        process_arena_create(arena, active_legend.current, self)
+      else
+        process_arena_update(arena, active_legend.current, self)
+      end
     else
-      # todo: more bot logic
-
       submit_turn(words.sample)
     end
+  end
+
+  def respond_with_error(head_response, message, object = nil, param_structure = nil)
+    Rails.logger.info "bot error: #{head_response}: #{message}"
   end
 end

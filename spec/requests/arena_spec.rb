@@ -95,8 +95,8 @@ RSpec.describe "the aromancer arena api" do
       play_turn(legend, p1, p2)
     end
 
-    puts JSON.pretty_generate p1.current_game_json
-    puts JSON.pretty_generate p2.current_game_json
+    # puts JSON.pretty_generate p1.current_game_json
+    # puts JSON.pretty_generate p2.current_game_json
     puts legend.reload.status
   end
 
@@ -110,7 +110,7 @@ RSpec.describe "the aromancer arena api" do
     end
     get "/legends/#{legend.id}/words/#{wid}/possibilities?api_key=#{tp.api_key}", headers: HEADERS
     possible = JSON.parse(response.body)
-    puts possible["word"]["humanized"]
+    # puts possible["word"]["humanized"]
     # puts "possible.for_type: #{possible["for_type"]}"
     # puts "possible.word: #{possible["word"]}"
     # puts "possible.options: #{possible["options"]}"

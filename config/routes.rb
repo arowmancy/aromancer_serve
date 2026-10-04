@@ -2,6 +2,7 @@ Rails.application.routes.draw do
   resource :session, only: [:create, :destroy]
   resource :users, only: [:create]
   resources :passwords, param: :token
+  resources :players, only: [:update]
   resources :legends, only: [:create, :index] do
     member do
       get :stream
@@ -17,5 +18,4 @@ Rails.application.routes.draw do
       end
     end
   end
-  resources :players, only: [:update]
 end

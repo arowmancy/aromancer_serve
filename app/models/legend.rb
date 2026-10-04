@@ -1,7 +1,7 @@
 class Legend < ApplicationRecord
   MIN_STORY_COUNT = 1
   MIN_PLAYERS = 1
-  MAX_PLAYERS = 3
+  MAX_PLAYERS = 2
 
   has_many :active_players, class_name: :Player, foreign_key: :active_legend_id
   has_many :player_legends
@@ -19,6 +19,13 @@ class Legend < ApplicationRecord
     :dnf,
     :complete,
   ]
+
+  def waiting_room
+    {
+      title: "waiting for players",
+      players: active_players.map{|p| {id: p.id, alias: p.alias}}
+    }
+  end
 
   def current
     c = (
@@ -50,11 +57,10 @@ class Legend < ApplicationRecord
           player_legends.create(player: bot)
         end
 
-        if created? &&
-          active_players.count >= 2
-          started!
-        end
+        started! if created? && player_count == active_players.count
       end
+
+      return nil unless started?
 
       # stories++
       next_story = stories.create

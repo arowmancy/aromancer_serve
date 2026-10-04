@@ -7,6 +7,7 @@ class Story < ApplicationRecord
   TOTAL_POINTS = 11.to_f
 
   def start
+    return if legend.player_legends.count != legend.player_count
     return if chapters.where(is_final: true).present?
 
     Dictionary.create(story: self) if dictionary.nil?

@@ -151,7 +151,7 @@ class Word < ApplicationRecord
       #     can_sign =
       #       self.sentence.value == player_word.value
       #
-
+      return [] if self_sentence.present? && self_sentence.is_stack
       return signature_matcher(player_words)
     end
   end
@@ -177,7 +177,7 @@ class Word < ApplicationRecord
           pw.value == self.absolute_value + w.value
         }
       } + scroll_sentences.select{|ss|
-        player_words.any?{|pw|
+        !ss.is_stack && player_words.any?{|pw|
           pw.number? && pw.value == self.absolute_value + ss.value
         }
       }
@@ -200,7 +200,7 @@ class Word < ApplicationRecord
           pw.value == self.absolute_value + w.value
         }
       } + scroll_sentences.select{|ss|
-        numeric_player_words.any?{|pw|
+        !ss.is_stack && numeric_player_words.any?{|pw|
           pw.value == self.absolute_value + ss.value
         }
       }
@@ -213,6 +213,7 @@ class Word < ApplicationRecord
       #       self.sentence.value + unsigned_sentences.value == any_player_word.value
       #
       #
+      return [] if self_sentence.present? && self_sentence.is_stack
       return player_words.select{|w|
         w.number? && numeric_player_words.any?{|pw|
           pw.value == self_sentence.value + w.value
@@ -222,6 +223,7 @@ class Word < ApplicationRecord
           pw.value == self_sentence.value + w.value
         }
       } + scroll_sentences.select{|ss|
+        (self_sentence.nil? || self_sentence.id != ss.id) &&
         numeric_player_words.any?{|pw|
           pw.value == self_sentence.value + ss.value
         }
@@ -237,8 +239,8 @@ class Word < ApplicationRecord
       #
       # => all scroll/player words and sentences that can form a stack
       #
-      #     can_stack = self.value == scroll_word.value && any_other_player_card.value == self.value ||
-      #       self.value == sentence.value && any_other_player_card.value == self.value
+      #     can_stack = self.value == scroll_word.value && any_other_player_word.value == self.value ||
+      #       self.value == sentence.value && any_other_player_word.value == self.value
       #
       return scroll_words.select{|w|
         w.number? && (
@@ -251,13 +253,23 @@ class Word < ApplicationRecord
           pw.value == ss.value
         }.any?
       }
-    when :scroll_word
+    when :scroll_word, :scroll_sentence
+      # when :scroll_word
       #
       # => all scroll/player words and sentences that can form a stack
       #
-      #     can_stack = self.value == player_word.value && any_other_player_card.value == self.value ||
-      #       self.value == scroll_word.value && any_other_player_card.value == self.value ||
-      #       self.value == sentence.value && any_other_player_card.value == self.value
+      #     can_stack = self.value == player_word.value && any_other_player_word.value == self.value ||
+      #       self.value == scroll_word.value && any_other_player_word.value == self.value ||
+      #       self.value == sentence.value && any_other_player_word.value == self.value
+      #
+      #
+      # when :scroll_sentence
+      #
+      # => all scroll/player words and sentences that can form a stack
+      #
+      #     can_stack = self.sentence.value == player_word.value && any_other_player_word.value == self.sentence.value ||
+      #       self.sentence.value == scroll_word.value && any_other_player_word.value == self.sentence.value ||
+      #       self.sentence.value == sentence.value && any_other_player_word.value == self.sentence.value ||
       #
       #
       return player_words.select{|w|
@@ -273,22 +285,29 @@ class Word < ApplicationRecord
           }.any?
         )
       } + scroll_sentences.select{|ss|
+        (self_sentence.nil? || self_sentence.id != ss.id) &&
         self.absolute_value == ss.value && numeric_player_words.select{|pw|
           pw.value == ss.value
         }.any?
       }
-    when :scroll_sentence
-      #
-      #   all scroll/player words and sentences that can form a stack
-      #
-      #     can_stack = #todo self.value == scroll_word.value && any_other_player_card.value == self.value ||
-      #       self.value == #todo sentence.value && any_other_player_card.value == self.value ||
-      #
-      #
-      #
-      # todo:
 
-      return []
+      # return player_words.select{|w|
+      #   w.number? && (
+      #     self.absolute_value == w.value && numeric_player_words.select{|pw|
+      #       pw.value == w.value
+      #     }.any?
+      #   )
+      # } + scroll_words.select{|w|
+      #   w != self && w.number? && (
+      #     self.absolute_value == w.value && numeric_player_words.select{|pw|
+      #       pw.value == w.value
+      #     }.any?
+      #   )
+      # } + scroll_sentences.select{|ss|
+      #   self.absolute_value == ss.value && numeric_player_words.select{|pw|
+      #     pw.value == ss.value
+      #   }.any?
+      # }
     end
   end
 

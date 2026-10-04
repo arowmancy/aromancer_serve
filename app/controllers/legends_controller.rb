@@ -6,8 +6,10 @@ class LegendsController < ApplicationController
 
 
   def index
-    @legends = @api_player.legends
-
+    @legends = Legend.order(created_at: :asc).where(id:
+      @api_player.legends.pluck(:id) +
+      Legend.where(status: :created).pluck(:id)
+    )
     render json: @legends, status: :ok
   end
 
@@ -16,7 +18,7 @@ class LegendsController < ApplicationController
     if @legend.save
       render json: @legend, status: :created
     else
-      respond_with_error(unprocessable_content, @legend.errors.full_messages, object = nil, param_structure = nil)
+      respond_with_error(unprocessable_content, @legend.errors.full_messages)
     end
   end
 
