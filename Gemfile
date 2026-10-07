@@ -35,6 +35,10 @@ gem "image_processing", "~> 1.2"
 # Use Rack CORS for handling Cross-Origin Resource Sharing (CORS), making cross-origin Ajax possible
 gem "rack-cors"
 
+group :production do
+  gem "redis", "~> 6.0"
+end
+
 group :development, :test do
   gem 'rspec-rails', git: 'https://github.com/rspec/rspec-rails'
 
