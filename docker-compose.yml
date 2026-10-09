@@ -1,0 +1,25 @@
+services:
+  redis:
+    image: "redis:7-alpine"
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+  web:
+    build: .
+    ports:
+      - "80:80"
+    environment:
+      - REDIS_URL=redis://redis:6379/1
+      - RAILS_ENV=production
+      - RAILS_MASTER_KEY
+    depends_on:
+      - redis
+    volumes:
+      # Mounts a dedicated volume directly to the production database folder
+      - rails_db:/rails/db
+      - rails_storage:/rails/storage # If using Active Storage
+volumes:
+  rails_db:
+  rails_storage:
+  redis_data:
