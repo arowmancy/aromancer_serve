@@ -7,9 +7,14 @@ class Sentence < ApplicationRecord
 
   after_save :configure_value
   after_create :configure_value
-  # todo: don't forget to set the sentence_instance.value when a sentence
-  # gets started by a player. author + value is defined by them but can
-  # be overridden by another player if the sentence is left on the scroll.
+
+  def value_display
+    "#{value} [#{words.map{|w| w.value_display}.join(", ")}]#{is_stack ? " (STK)" : ""}"
+  end
+
+  def weight
+    (signature&.weight || 0) + words.map{|w| w.weight}.sum
+  end
 
   def json_sentence
     {
@@ -38,4 +43,5 @@ class Sentence < ApplicationRecord
 
     self.update(value: calc) unless calc == value || self.new_record?
   end
+
 end

@@ -1,7 +1,10 @@
 class LegendsController < ApplicationController
 
   def stream
-    render json: {stream: @api_player.active_legend.current.entries}
+    render json: {
+      stream: @api_player.active_legend&.current.nil? ?
+      [] : Entry.where(chapter_id: @api_player.active_legend.current.story.chapters.pluck(:id)).order(created_at: :asc)
+    }
   end
 
 

@@ -37,8 +37,8 @@ RSpec.describe "the aromancer arena api" do
 
     # pick random for which player creates the game via api
     lc = Legend.count
-    api_key_param = "?api_key=#{[p1, p2].sample.api_key}"
-    post "/legends#{api_key_param}", params: LEGEND_CREATE_PARAMS.to_json, headers: HEADERS
+    api_key_param = "Bearer #{[p1, p2].sample.api_key}"
+    post "/legends", params: LEGEND_CREATE_PARAMS.to_json, headers: HEADERS.merge({"Authorization": api_key_param})
     expect(Legend.count).to eq(lc + 1)
   end
 
@@ -63,7 +63,8 @@ RSpec.describe "the aromancer arena api" do
     expect(p2.active_legend.id).to eq(legend.id)
     expect(legend.current.present?).to be(true)
 
-    get "/legends/#{legend.id}/arena?api_key=#{[p1, p2].sample.api_key}", headers: HEADERS
+    api_key_param = "Bearer #{[p1, p2].sample.api_key}"
+    get "/legends/#{legend.id}/arena", headers: HEADERS.merge({"Authorization": api_key_param})
     expect(response.status).to eq(200)
     expect(legend.reload.started?).to be(true)
   end
@@ -75,11 +76,13 @@ RSpec.describe "the aromancer arena api" do
     p2 = Player.find_by(alias: :p2)
     d = legend.current.story.dictionary
 
-    get "/legends/#{legend.id}/arena?api_key=#{p1.api_key}"
+    api_key_param = "Bearer #{p1.api_key}"
+    get "/legends/#{legend.id}/arena", headers: HEADERS.merge({"Authorization": api_key_param})
     expect(response.status).to eq(200)
     p1_response = JSON.parse(response.body)
 
-    get "/legends/#{legend.id}/arena?api_key=#{p2.api_key}"
+    api_key_param = "Bearer #{p2.api_key}"
+    get "/legends/#{legend.id}/arena", headers: HEADERS.merge({"Authorization": api_key_param})
     expect(response.status).to eq(200)
     p2_response = JSON.parse(response.body)
 
@@ -108,7 +111,9 @@ RSpec.describe "the aromancer arena api" do
     rand(1..11).times do |i|
       wid = tp_word_ids.sample
     end
-    get "/legends/#{legend.id}/words/#{wid}/possibilities?api_key=#{tp.api_key}", headers: HEADERS
+
+    api_key_param = "Bearer #{tp.api_key}"
+    get "/legends/#{legend.id}/words/#{wid}/possibilities", headers: HEADERS.merge({"Authorization": api_key_param})
     possible = JSON.parse(response.body)
     # puts possible["word"]["humanized"]
     # puts "possible.for_type: #{possible["for_type"]}"
@@ -127,8 +132,8 @@ RSpec.describe "the aromancer arena api" do
     end
 
     # puts params
-    url = "/legends/#{legend.id}/arena?api_key=#{tp.api_key}"
-    post url, params: params.to_json, headers: HEADERS
+    url = "/legends/#{legend.id}/arena"
+    post url, params: params.to_json, headers: HEADERS.merge({"Authorization": api_key_param})
     # post_response = JSON.parse(response.body)
     # puts post_response
     expect(response.status).to eq(201)
@@ -136,8 +141,9 @@ RSpec.describe "the aromancer arena api" do
 
   def put_request_player_status(player, status = :none, active_legend_id = nil)
     return if player.nil?
+    api_key_param = "Bearer #{player.api_key}"
     params = {player: {id: player.id, status: status, active_legend_id: active_legend_id}}.to_json
-    put "/players/#{player.id}?api_key=#{player.api_key}", params: params, headers: HEADERS
+    put "/players/#{player.id}?api_key=#{player.api_key}", params: params, headers: HEADERS.merge({"Authorization": api_key_param})
     # puts JSON.parse response.body
   end
 end

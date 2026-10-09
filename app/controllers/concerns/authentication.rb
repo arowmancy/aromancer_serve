@@ -22,11 +22,14 @@ module Authentication
     end
 
     def resume_session
-      @api_player ||= Player.find_by(api_key: params[:api_key])
+      return nil unless request.headers[:authorization.to_s.capitalize].present?
+      @api_player ||= Player.find_by(
+        api_key: request.headers[:authorization.to_s.capitalize].gsub(:bearer.to_s.capitalize, "").strip
+      )
     end
 
     def request_authentication
-      respond_with_error(:unauthorized, "not signed in") # TODO: I18n.t("errors.not_signed_in")
+      respond_with_error(:unauthorized, "not signed in") # TODO: localization eg: I18n.t("errors.not_signed_in")
     end
 
     def start_new_session_for(user)

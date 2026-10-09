@@ -108,6 +108,9 @@ class Chapter < ApplicationRecord
     json_result = {
       id: player.id,
       alias: player.alias,
+      score: "#{story.chapters.map{|c|
+        c.sentences.where.not(signature_id: nil).where(author: player).map{|s| s.weight}.sum
+      }.sum.round(1)}",
       words: unspoken_words.where(
         id: player_words.where(player: player).pluck(:word_id)
       ).sort_by{|w|

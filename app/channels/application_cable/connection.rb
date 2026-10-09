@@ -8,8 +8,9 @@ module ApplicationCable
 
     private
       def set_player
-        self.player = Player.find_by(api_key: request.params[:api_key])
-        @api_player = self.player
+        @api_player = Player.find_by(api_key: request.headers["Authorization"].gsub("Bearer", "").strip)
+        self.player = @api_player
+        @api_player
       end
   end
 end

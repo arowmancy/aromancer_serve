@@ -89,11 +89,14 @@ class Word < ApplicationRecord
     w
   end
 
+  def value_display
+    "#{self.suit.split("")[0].upcase}(#{number? ? value : style[0..3].upcase})"
+  end
+
   def json_card
-    suit_display = self.suit.split("")[0].upcase
     {
       id: id,
-      value_display: "#{suit_display}(#{number? ? "#{value}" : style[0..3].upcase})",
+      value_display: value_display,
       suit_display: suit.upcase,
       value: value,
       suit: suit,
@@ -157,7 +160,7 @@ class Word < ApplicationRecord
   end
 
   def can_combine_options
-    return [] unless number?
+    return [] unless number? && dictionary.story.legend.current.unsigned_sentences.where(author: @player).empty?
 
     case possibility_for_type
     when :player_word
@@ -232,7 +235,7 @@ class Word < ApplicationRecord
   end
 
   def can_stack_options
-    return [] unless number?
+    return [] unless number? && dictionary.story.legend.current.unsigned_sentences.where(author: @player).empty?
 
     case possibility_for_type
     when :player_word
@@ -290,24 +293,6 @@ class Word < ApplicationRecord
           pw.value == ss.value
         }.any?
       }
-
-      # return player_words.select{|w|
-      #   w.number? && (
-      #     self.absolute_value == w.value && numeric_player_words.select{|pw|
-      #       pw.value == w.value
-      #     }.any?
-      #   )
-      # } + scroll_words.select{|w|
-      #   w != self && w.number? && (
-      #     self.absolute_value == w.value && numeric_player_words.select{|pw|
-      #       pw.value == w.value
-      #     }.any?
-      #   )
-      # } + scroll_sentences.select{|ss|
-      #   self.absolute_value == ss.value && numeric_player_words.select{|pw|
-      #     pw.value == ss.value
-      #   }.any?
-      # }
     end
   end
 
@@ -318,16 +303,21 @@ class Word < ApplicationRecord
     mapper = Proc.new{|action, o|
       s = nil
       http_verb = :post
+      humanized_title = "#{self_sentence.present? ? self_sentence.value_display : value_display} #{action}"
+      total_weight = 0
       payload = {}
       if o.kind_of?(Sentence)
         s = o
       end
       w = o if s.nil?
+
       case action
       when :can_sign
         if s.nil?
           if self_sentence.nil?
             # create new sentence & sign with self
+            humanized_title += " a new sentence with #{w.value_display}"
+            total_weight = self.weight + w.weight
             payload = {
               word_id: self.id,
               sentence: {
@@ -337,6 +327,8 @@ class Word < ApplicationRecord
             }
           else
             # sign self_sentence with w
+            humanized_title += " a new sentence with #{w.value_display}"
+            total_weight = self_sentence.weight + w.weight
             payload = {
               sentence_id: self_sentence.id,
               sentence: {
@@ -345,6 +337,8 @@ class Word < ApplicationRecord
             }
           end
         else
+          humanized_title += " #{s.value_display}"
+          total_weight = self.weight + s.weight
           payload = {
             sentence_id: s.id,
             sentence: {
@@ -356,6 +350,8 @@ class Word < ApplicationRecord
         if s.nil?
           if self_sentence.nil?
             # combine self with w
+            humanized_title += " with #{w.value_display}"
+            total_weight = self.weight + w.weight
             payload = {
               word_id: self.id,
               sentence: {
@@ -364,6 +360,8 @@ class Word < ApplicationRecord
             }
           else
             # add w to self_sentence
+            humanized_title += " with #{self_sentence.value_display}"
+            total_weight = self_sentence.weight + w.weight
             payload = {
               sentence_id: self_sentence.id,
               sentence: {
@@ -374,6 +372,8 @@ class Word < ApplicationRecord
         else
           if self_sentence.nil?
             # add self to s
+            humanized_title += " with #{s.value_display}"
+            total_weight = s.weight + self.weight
             payload = {
               sentence_id: s.id,
               sentence: {
@@ -382,6 +382,8 @@ class Word < ApplicationRecord
             }
           else
             # merge self_sentence & s
+            humanized_title += " with #{s.value_display}"
+            total_weight = self_sentence.weight + s.weight
             http_verb = :put
             payload = {
               sentence_ids: [self_sentence.id, s.id],
@@ -393,7 +395,9 @@ class Word < ApplicationRecord
 
         if s.nil?
           if self_sentence.nil?
-            # combine self with w
+            # stack self with w
+            humanized_title += " with #{w.value_display}"
+            total_weight = self.weight + w.weight
             payload = {
               word_id: self.id,
               sentence: {
@@ -403,6 +407,8 @@ class Word < ApplicationRecord
             }
           else
             # add w to self_sentence
+            humanized_title += " with #{w.value_display}"
+            total_weight = self_sentence.weight + w.weight
             payload = {
               sentence_id: self_sentence.id,
               sentence: {
@@ -414,6 +420,8 @@ class Word < ApplicationRecord
         else
           if self_sentence.nil?
             # add self to s
+            humanized_title += " with #{s.value_display}"
+            total_weight = self.weight + s.weight
             payload = {
               sentence_id: s.id,
               sentence: {
@@ -423,6 +431,8 @@ class Word < ApplicationRecord
             }
           else
             # merge self_sentence & s
+            humanized_title += " with #{s.value_display}"
+            total_weight = self_sentence.weight + s.weight
             http_verb = :put
             payload = {
               sentence_ids: [self_sentence.id, s.id],
@@ -437,8 +447,10 @@ class Word < ApplicationRecord
         action: action,
         word: w&.json_card,
         sentence: s&.json_sentence,
-        payload: payload.to_json,
-        http_verb: http_verb
+        payload: payload.merge({wytyd: humanized_title}).to_json,
+        http_verb: http_verb,
+        humanized_title: humanized_title,
+        total_weight: total_weight.round(4)
       }
     }
 
@@ -450,7 +462,7 @@ class Word < ApplicationRecord
     {
       word: self.json_card,
       for_type: possibility_for_type,
-      options: result
+      options: result.sort_by{|o| o[:total_weight]}.reverse
     }
   end
 
