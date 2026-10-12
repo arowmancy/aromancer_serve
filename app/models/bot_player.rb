@@ -29,7 +29,7 @@ class BotPlayer < Player
     if option.present?
       # valid word option
       arena = JSON.parse(option[:payload]).symbolize_keys
-      Rails.logger.info arena.inspect
+      # Rails.logger.info arena.inspect
 
       if option[:http_verb] == :post
         process_arena_create(arena, active_legend.current, self)

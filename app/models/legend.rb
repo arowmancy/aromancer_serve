@@ -27,6 +27,13 @@ class Legend < ApplicationRecord
     }
   end
 
+  def final_state_json
+    {
+      title: "legend complete. final score:",
+      players: players.map{|p| stories.first.chapters.last.player_json(p)}
+    }
+  end
+
   def current
     c = (
       stories.select{|s|

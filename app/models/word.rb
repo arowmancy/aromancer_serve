@@ -160,7 +160,7 @@ class Word < ApplicationRecord
   end
 
   def can_combine_options
-    return [] unless number? && dictionary.story.legend.current.unsigned_sentences.where(author: @player).empty?
+    return [] unless number?
 
     case possibility_for_type
     when :player_word
@@ -235,7 +235,7 @@ class Word < ApplicationRecord
   end
 
   def can_stack_options
-    return [] unless number? && dictionary.story.legend.current.unsigned_sentences.where(author: @player).empty?
+    return [] unless number?
 
     case possibility_for_type
     when :player_word

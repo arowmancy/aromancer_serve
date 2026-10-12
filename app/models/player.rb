@@ -22,14 +22,17 @@ class Player < ApplicationRecord
   end
 
   def current_game_json
-    unless active_legend.present?
-      return {title: "loading..."}
-    end
+    return nil unless active_legend.present?
 
-    if active_legend.current.present? && active_legend.started?
-      active_legend.current.current_state_json(self)
+    if active_legend.current.present?
+      case active_legend.status.to_sym
+      when :started
+        return active_legend.current.current_state_json(self)
+      when :complete
+        return active_legend.final_state_json
+      end
     else
-      active_legend.waiting_room
+      return active_legend.waiting_room
     end
   end
 
@@ -105,10 +108,13 @@ class Player < ApplicationRecord
       next_id = active_legend.players.where.not(id: self.id).order(id: :asc).first.id
       active_legend.current.update(turn_player_id: next_id)
       active_legend.reload
-      PlayerChannel.broadcast_to(active_legend.current.turn_player, {type: :arena, id: active_legend.id})
 
-      # poke the bot player
-      BotPlayer.find_by(id: next_id)&.poke
+      if active_legend.current.turn_player.kind_of?(BotPlayer)
+        # poke the bot player
+        active_legend.current.turn_player.poke
+      else
+        PlayerChannel.broadcast_to(active_legend.current.turn_player, {type: :arena, id: active_legend.id})
+      end
     end
   end
 
