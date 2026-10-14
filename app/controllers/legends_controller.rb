@@ -10,8 +10,7 @@ class LegendsController < ApplicationController
 
   def index
     @legends = Legend.order(created_at: :asc).where(id:
-      @api_player.legends.pluck(:id) +
-      Legend.where(status: :created).pluck(:id)
+      (@api_player.legends.pluck(:id) + Legend.where(status: :created).pluck(:id)).uniq
     )
     render json: @legends, status: :ok
   end
