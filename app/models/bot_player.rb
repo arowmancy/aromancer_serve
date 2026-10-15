@@ -21,7 +21,7 @@ class BotPlayer < Player
     while option.nil? && retries <= max_retries
       possibilities = words.sample.possibilities(self)
       # Rails.logger.info possibilities.inspect
-      option = possibilities[:options].select{|o| !o[:payload].blank?}.sample
+      option = possibilities[:options].select{|o| !o[:payload].blank?}.max{|o| o[:total_weight]}
       # Rails.logger.info option.inspect
       retries += 1 if option.nil?
     end

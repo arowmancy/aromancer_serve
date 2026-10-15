@@ -1,5 +1,10 @@
 class LegendsController < ApplicationController
 
+  def find
+    legends = Legend.where(status: :created).order(created_at: :asc)
+    render json: legends, status: :ok
+  end
+
   def stream
     render json: {
       stream: @api_player.active_legend&.current.nil? ?
@@ -7,12 +12,9 @@ class LegendsController < ApplicationController
     }
   end
 
-
   def index
-    @legends = Legend.order(created_at: :asc).where(id:
-      (@api_player.legends.pluck(:id) + Legend.where(status: :created).pluck(:id)).uniq
-    )
-    render json: @legends, status: :ok
+    legends = @api_player.legends.order(created_at: :asc)
+    render json: legends, status: :ok
   end
 
   def create

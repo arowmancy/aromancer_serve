@@ -6,9 +6,15 @@ Rails.application.routes.draw do
   resources :passwords, param: :token
   resources :players, only: [:update]
   resources :legends, only: [:create, :index] do
+
     member do
       get :stream
     end
+
+    collection do
+      get :find
+    end
+
     resources :arena, only: [:create, :index] do
       collection do
         put :update

@@ -90,7 +90,7 @@ class Word < ApplicationRecord
   end
 
   def value_display
-    "#{self.suit.split("")[0].upcase}(#{number? ? value : style[0..3].upcase})"
+    "#{self.suit.split("")[0].upcase}(#{number? ? value : style[0..1].upcase})"
   end
 
   def json_card
@@ -387,7 +387,7 @@ class Word < ApplicationRecord
             http_verb = :put
             payload = {
               sentence_ids: [self_sentence.id, s.id],
-              value: self_sentence.value
+              value: self_sentence.value + s.value
             }
           end
         end

@@ -11,6 +11,18 @@ class Player < ApplicationRecord
   after_validation :check_alias, :check_active_legend
   before_create :set_api_key
 
+  class ActiveLegendValidator < ActiveModel::Validator
+    def validate(record)
+      if record.active_legend.present?
+        plids = record.active_legend.player_legends.pluck(:player_id)
+        if plids.count == 2 && plids.exclude?(record.id)
+          record.errors.add :active_legend, "#{record.alias} is not permitted access to legend #{record.active_legend.id}"
+        end
+      end
+    end
+  end
+  validates_with ActiveLegendValidator
+
   enum :status, [
     :gone,
     :lobby,
@@ -50,10 +62,11 @@ class Player < ApplicationRecord
       description: "#{self.alias} submitting turn..."
     )
     # player is adding their own word to the scroll
-    is_playing_turn = active_legend.current.player_words.where(player: self, word: word).any?
+    is_playing_turn = active_legend.current.player_words.where(player: self, word_id: [word.id] + words).any?
     sentence = nil
 
     if words.any?
+      entry_desc = ""
       sentence = active_legend.current.sentences.find_by(id: sentence_id)
       if sentence.nil?
         sentence = active_legend.current.sentences.create(
@@ -62,12 +75,12 @@ class Player < ApplicationRecord
           is_stack: is_stack,
           value: word.value
         )
-        entry.update(description: (entry.description || "") + " created sentence: #{sentence.to_json}")
+        entry_desc = "#{self.alias} created sentence: "
       else
         if sign
           sentence.signature = word
           sentence.author = self
-          entry.update(description: (entry.description || "") + " signed sentence: #{sentence.to_json}")
+          entry_desc = "#{self.alias} signed sentence: "
         end
         sentence.is_stack = is_stack
         sentence.save
@@ -97,7 +110,10 @@ class Player < ApplicationRecord
         word_id: wids_to_remove
       ).delete_all
 
-      sentence.save if sentence.sentence_words.any?
+      if sentence.sentence_words.any?
+        sentence.save
+        entry.update(description: entry_desc + sentence.value_display)
+      end
     end
 
     if is_playing_turn

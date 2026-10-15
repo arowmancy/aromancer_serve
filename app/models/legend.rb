@@ -76,15 +76,16 @@ class Legend < ApplicationRecord
       next_story.start
 
       return next_story.chapters.first
-    else
+    elsif !complete?
       stories.last.finalize
       complete!
 
       active_players.each{|p|
         PlayerChannel.broadcast_to(p, {type: :arena, id: self.id})
       }
-
-      return stories.last.chapters.last
     end
+
+    return stories.last.chapters.last
+
   end
 end
