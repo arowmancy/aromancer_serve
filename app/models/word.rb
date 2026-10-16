@@ -447,7 +447,7 @@ class Word < ApplicationRecord
         action: action,
         word: w&.json_card,
         sentence: s&.json_sentence,
-        payload: payload.merge({wytyd: humanized_title}).to_json,
+        payload: payload.to_json,
         http_verb: http_verb,
         humanized_title: humanized_title,
         total_weight: total_weight.round(4)

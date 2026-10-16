@@ -9,11 +9,15 @@ class Sentence < ApplicationRecord
   after_create :configure_value
 
   def value_display
-    "#{value} [#{signature.present? ? signature.value_display + "(SIG), " : ""}#{words.map{|w| w.value_display}.join(", ")}]#{is_stack ? " (STK)" : ""}"
+    "#{value} #{to_s}"
   end
 
   def weight
     (signature&.weight || 0) + words.where.not(id: signature&.id).map{|w| w.weight}.sum
+  end
+
+  def to_s
+    "[#{signature.present? ? signature.value_display + "(SIG), " : ""}#{words.map{|w| w.value_display}.join(", ")}]#{is_stack ? " (STK)" : ""}"
   end
 
   def json_sentence

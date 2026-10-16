@@ -1,6 +1,31 @@
 module Arena
   extend ActiveSupport::Concern
 
+  # Arena::CREATE_PAYLOAD
+  CREATE_PAYLOAD = {
+    arena: {
+      word_id: "integer, this is the 'word being played' this turn",
+      sentence_id: "integer, this is the 'sentence being played' this turn (optional)",
+      sentence: {
+        signature_id: "integer, nullable, if present, attempt to sign the sentence.",
+        word_ids: "integer array, word ids to include in sentence.",
+        is_stack: "boolean, is_stack for new sentence.",
+      }
+    }
+  }
+
+  # Arena::UPDATE_PAYLOAD
+  UPDATE_PAYLOAD = {
+    arena: {
+      sentence_ids: "integer array, sentence ids to combine",
+      value: "integer, value of the new sentence.",
+      is_stack: "boolean, is_stack for new sentence."
+    }
+  }
+
+  # this is used for combining sentences into one
+  # it does not count as the player's turn so long
+  # as they are holding a valid signature card.
   def process_arena_update(arena, chapter, player)
     if arena.nil?
       # missing params
@@ -51,7 +76,7 @@ module Arena
     sentence = chapter.sentences.create(
       author: player,
       value: arena[:value],
-      is_stack: arena[:is_stack],
+      is_stack: arena[:is_stack]
     )
     unless sentence.present? && sentence.persisted?
       error_message = "error creating new sentence: #{sentence.errors.full_messages}."
@@ -151,8 +176,7 @@ module Arena
     # if we make it here, the payload is ready to be submitted
     @new_entry = chapter.entries.create(
       player: player,
-      word: word,
-      description: "#{player.alias} wytyd: #{arena[:wytyd]}"
+      word: word
     )
 
     player.submit_turn(word, existing_sentence&.id, sws, should_sign, is_stack, entry: @new_entry)
