@@ -1,8 +1,8 @@
 class Chapter < ApplicationRecord
   # *scroll (used words)
   #
-  # a stack of 2 or more cards, one of which "writes" the sentence.
-  # whichever player produces the signature card from their unspoken words
+  # a stack of 2 or more words, one of which "writes" the sentence.
+  # whichever player produces the signature word from their unspoken words
   # automatically becomes the author. all words exit the scroll via
   # sentences. at the end of each story, player stats are updated
   # using the sum of all word-points values that are included
@@ -19,15 +19,15 @@ class Chapter < ApplicationRecord
   # *scroll (unused words)
   #
   # join table: chapter_id_word_id
-  # plain english: "card ids visible and combinable to all players"
+  # plain english: "word ids visible and combine-able to all players"
   has_many :scroll_words
-  # all cards shown on the scroll (not used in sentence)
+  # all words shown on the scroll (not used in sentence)
   has_many :unwritten_words, through: :scroll_words, source: :word
 
   # *player "hand"
   #
   # join table: chapter_id_player_id_word_id
-  # plain english: "unplayed card ids grouped by player"
+  # plain english: "unplayed word ids grouped by player"
   has_many :player_words
   # all words dealt to players currently in-play.
   has_many :unspoken_words, through: :player_words, source: :word
@@ -43,10 +43,10 @@ class Chapter < ApplicationRecord
     nds = non_dealers
     11.times do
       # deal to non-dealer players
-      nds.each{|nd| deal_one_card(nd)}
+      nds.each{|nd| deal_one_word(nd)}
 
       # deal to dealer
-      deal_one_card(story.dealer)
+      deal_one_word(story.dealer)
     end
 
     # poke the bots
@@ -79,11 +79,6 @@ class Chapter < ApplicationRecord
       pw = playable_words.find_by(player_id: player.id, word_id: word.id)
       # delete the player_word record and add the scroll_word record
       pw.destroy && scroll_words.create(word_id: word.id)
-
-      entries.last.update(
-        description: (entries.last.description || "") +
-        " #{player.alias} placed #{word.json_card[:value_display]} onto the scroll."
-      )
     rescue StandardError => e
       entries.last.update(
         description: (entries.last.description || "") +
@@ -93,6 +88,7 @@ class Chapter < ApplicationRecord
   end
 
   def current_state_json(for_player)
+    bot_player = BotPlayer.where(id: story.legend.players.pluck(:id)).first
     {
       title: "#{self.class.name.downcase} #{nzindex_number}",
       dealer: player_json(story.dealer).except(:words),
@@ -100,29 +96,30 @@ class Chapter < ApplicationRecord
       scroll_words: unwritten_words.sort_by{|w| [w.value, w.suit]}.map{|w| w.json_card},
       sentences: unsigned_sentences.map{|s| s.json_sentence},
       player: player_json(for_player, for_player),
-      players: story.legend.players.map{|p| player_json(p).except(:words)}
+      players: story.legend.players.map{|p| player_json(p).except(:words)},
+      bot_player: bot_player.present? ? player_json(bot_player, bot_player) : nil
     }
   end
 
   def player_json(player, for_player = nil)
     json_result = {
       id: player.id,
-      alias: player.alias,
-      score: "#{story.chapters.map{|c|
-        c.sentences.where.not(signature_id: nil).where(author: player).map{|s| s.weight}.sum
-      }.sum.round(1)}",
+      alias: "#{player.alias}#{player.current_language.present? ? "(#{player.current_language.value_display})" : ""}",
+      score: player.current_score,
       words: unspoken_words.where(
         id: player_words.where(player: player).pluck(:word_id)
       ).sort_by{|w|
-        [w.value, w.suit]
+        [w.value, w.style, w.suit]
       }.map{|w|
         player == for_player ? w.json_card : {}
       }
     }
 
     if for_player.present? && player == for_player
-      # todo: add other player-facing fields here
+      # todo: add other player-only-facing fields here
       # eg: json_result[:api_key] = player.api_key
+      #
+
       json_result[:sentences] =
         sentences.where.not(signature_id: nil).where(author: player).map{|s| s.json_sentence}
     end
@@ -130,7 +127,7 @@ class Chapter < ApplicationRecord
     json_result
   end
 
-  def deal_one_card(player)
+  def deal_one_word(player)
     return if self.is_final
     # get the top word
     word = story.dictionary.get_top_word

@@ -1,7 +1,6 @@
 require_relative "../controllers/concerns/arena"
 
 class BotPlayer < Player
-  include Arena
 
   def poke
 
@@ -15,33 +14,33 @@ class BotPlayer < Player
 
     return unless words.any?
 
+    # todo:
+    # check if any sentences can be combined
+    # check for highest value builder sentence
+
     option = nil
     max_retries = rand(11..22)
     retries = 0
     while option.nil? && retries <= max_retries
       possibilities = words.sample.possibilities(self)
       # Rails.logger.info possibilities.inspect
-      option = possibilities[:options].select{|o| !o[:payload].blank?}.max{|o| o[:total_weight]}
+
+      option = possibilities[:options].max{|o| o[:total_weight]}
       # Rails.logger.info option.inspect
       retries += 1 if option.nil?
     end
 
+    handled = false
     if option.present?
-      # valid word option
-      arena = JSON.parse(option[:payload]).symbolize_keys
-      # Rails.logger.info arena.inspect
+      writable_option = WritableOption.find_by(uuid: option[:uuid])
 
-      if option[:http_verb] == :post
-        process_arena_create(arena, active_legend.current, self)
-      else
-        process_arena_update(arena, active_legend.current, self)
+      if writable_option.present?
+        writable_option.write!
+        handled = true
       end
-    else
-      submit_turn(words.sample)
     end
-  end
 
-  def respond_with_error(head_response, message, object = nil, param_structure = nil)
-    Rails.logger.info "bot error: #{head_response}: #{message}"
+    submit_turn(active_legend.current.player_words.where(player: self).sample.word) unless handled
+
   end
 end

@@ -100,12 +100,11 @@ RSpec.describe "the aromancer arena api" do
 
     # puts JSON.pretty_generate p1.current_game_json
     # puts JSON.pretty_generate p2.current_game_json
-    puts legend.reload.status
+    # puts legend.reload.status
   end
 
   def play_turn(legend, p1, p2)
     tp = legend.current.turn_player
-    params = {}
     wid = nil
     tp_word_ids = legend.current.player_words.where(player: tp).pluck(:word_id)
     rand(1..11).times do |i|
@@ -115,6 +114,9 @@ RSpec.describe "the aromancer arena api" do
     api_key_param = "Bearer #{tp.api_key}"
     get "/legends/#{legend.id}/words/#{wid}/possibilities", headers: HEADERS.merge({"Authorization": api_key_param})
     possible = JSON.parse(response.body)
+    response_uuid = possible["uuid"]
+    option_uuid = nil
+    params = nil
     # puts possible["word"]["humanized"]
     # puts "possible.for_type: #{possible["for_type"]}"
     # puts "possible.word: #{possible["word"]}"
@@ -123,20 +125,29 @@ RSpec.describe "the aromancer arena api" do
     if possible["options"].any?
       payload = nil
       rand(1..11).times do |i|
-        payload = possible["options"].sample["payload"]
+        next if option_uuid.present?
+        # grab any option uuid
+        # todo: this is where game strategy would be added
+        option_uuid = possible["options"].sample["uuid"]
       end
-      parsed_payload = JSON.parse(payload)
-      params = {arena: parsed_payload}
-    else
-      params = {arena: {word_id: wid}}
+
+      params = {option_uuid: option_uuid}
     end
 
     # puts params
-    url = "/legends/#{legend.id}/arena"
-    post url, params: params.to_json, headers: HEADERS.merge({"Authorization": api_key_param})
+    url = "/legends/#{legend.id}/arena/#{response_uuid}"
+    put url, params: params.to_json, headers: HEADERS.merge({"Authorization": api_key_param})
     # post_response = JSON.parse(response.body)
     # puts post_response
-    expect(response.status).to eq(201)
+    expect(response.status).to eq(200)
+
+    if legend.current.story.chapters.count == 4
+      && tp_word_ids.count == 1
+
+      # just took last turn
+      puts "# just took last turn"
+      puts JSON.pretty_generate response.body
+    end
   end
 
   def put_request_player_status(player, status = :none, active_legend_id = nil)

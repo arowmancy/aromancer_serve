@@ -6,14 +6,17 @@ class LegendsController < ApplicationController
   end
 
   def stream
+    entries = @api_player.active_legend&.current.nil? ? [] :
+      Entry.where(chapter_id: @api_player.active_legend.current.story.chapters.pluck(:id)).order(created_at: :asc)
+
+    entries = entries.last(params[:count]) if params[:count].present? && params[:count].to_i > 0
     render json: {
-      stream: @api_player.active_legend&.current.nil? ?
-      [] : Entry.where(chapter_id: @api_player.active_legend.current.story.chapters.pluck(:id)).order(created_at: :asc)
+      stream: entries
     }
   end
 
   def index
-    legends = @api_player.legends.order(created_at: :asc)
+    legends = @api_player.legends.order(created_at: :asc).map{|l| l.legend_json}
     render json: legends, status: :ok
   end
 

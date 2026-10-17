@@ -1,26 +1,28 @@
 class ArenaController < ApplicationController
-  include Arena
-  before_action :set_chapter, only: %i[ create update ]
+  before_action :set_chapter, only: %i[ update ]
 
   def index
     render json: @api_player.current_game_json
   end
 
   def update
-    params.permit!
-    arena = params[:arena]
-    process_arena_update(arena, @chapter, @api_player)
+    writable = Writable.find_by(uuid: params[:id], player_legend_id: PlayerLegend.where(player: @api_player).pluck(:id))
+    if writable.present?
+      writable_option = writable.writable_options.find_by(uuid: params[:option_uuid])
 
-    render json: @api_player.reload.current_game_json
-  end
+      if writable_option.present?
+        # todo: check for success
+        writable_option.write!
+      else
+        writable.write!
+      end
 
-  def create
-    params.permit!
-    arena = params[:arena]
-
-    process_arena_create(arena, @chapter, @api_player)
-
-    render json: @api_player.reload.current_game_json, status: :created
+      render json: @api_player.current_game_json
+      return
+    else
+      # {code: 404, name: :not_found}
+      respond_with_error :not_found, I18n.t("errors.missing_writable")
+    end
   end
 
   private
@@ -28,9 +30,9 @@ class ArenaController < ApplicationController
   def set_chapter
     @chapter = @api_player&.active_legend.current
     if @chapter.nil? || @chapter.turn_player != @api_player
-      error_message = "it is not your turn"
+      error_message = I18n.t("errors.not_your_turn")
       # {code: 403, name: :forbidden}
-      respond_with_error :forbidden, error_message
+      respond_with_error :forbidden, error_message, error_message, action_name.to_sym == :create ? Arena::CREATE_PAYLOAD.dup : Arena::UPDATE_PAYLOAD.dup
       return
     end
   end

@@ -1,4 +1,27 @@
-# standard 78-card tarot deck
+# standard 78-card tarot deck with 6 mathematica operator words:
+#
+# 2-each of ["-", "×", "÷"]
+#
+# note: there are no "+" mathematica words because this
+# is the default "language" of each sentence.
+#
+# total count in a dictionary is 84 words.
+# one "story" is one full pass through the full tarot
+# deck broken down by chapters.
+#
+# players are dealt the same number of words in each chapter.
+#
+# a standard 2-player story has 4 chapters
+#
+#   2 players x 11 words/each x 3 chapters = 66 words
+#   2x11x3=(66) words each (3 chapters)
+#
+#   2 players x 18 words/each x 1 chapter = 18 words
+#   2x9x1 =(18) words each (last chapter)
+#
+# total: 84 = 66+18
+#
+
 class Dictionary < ApplicationRecord
   belongs_to :story
   has_many :words
@@ -13,51 +36,11 @@ class Dictionary < ApplicationRecord
     top
   end
 
-
-  # todo:
-
-  # def get_word(code)
-  #   s_code = code.to_s.first
-  #   value = code.to_s.gsub(s_code, "").to_i
-  #   suit = case s_code.to_sym
-  #   when :t
-  #     :trumps
-  #   when :c
-  #     :cups
-  #   when :s
-  #     :swords
-  #   when :p
-  #     :pentacles
-  #   when :w
-  #     :wands
-  #   end
-
-  #   words.find_by(suit: suit, value: value)
-  # end
-
-  # def t1
-  #   words.find_by(suit: :trumps, value: 1)
-  # end
-  # def tii
-  #   words.find_by(suit: :trumps, value: 2)
-  # end
-  # def tiii
-  #   words.find_by(suit: :trumps, value: 3)
-  # end
-  # def tiv
-  #   words.find_by(suit: :trumps, value: 4)
-  # end
-  # def tv
-  #   words.find_by(suit: :trumps, value: 5)
-  # end
-  # def tvi
-  # end
-
   private
 
   def generate
     order_index_counter = 0
-    Word.suits.keys.each{|current_suit|
+    Word.suits.keys.each do |current_suit|
       total_words = 14
       case current_suit.to_sym
       when :trumps
@@ -70,7 +53,25 @@ class Dictionary < ApplicationRecord
           )
           order_index_counter += 1
         end
-      else
+      when :mathematica # math operation cards that get applied to a sentence
+        total_words = 6 # include 2-each of non-addition languages
+        [
+          # plus is the default for all game-play
+          # :plus,
+          :minus,
+          :times,
+          :over
+        ].each do |language|
+          2.times do
+            words.create(
+              suit: current_suit,
+              order_index: order_index_counter,
+              style: Word.style_for_language(language)
+            )
+            order_index_counter += 1
+          end
+        end
+      else # minor arcana
         1..total_words.times do |i|
           i = i + 1
           w = words.create(
@@ -91,18 +92,18 @@ class Dictionary < ApplicationRecord
           end
         end
       end
-    }
+
+    end
 
     # this should be all the randomization needed
     shuffled = words.pluck(:order_index).to_a
-    Random.rand(2..Random.rand(2..22)).times do
+    SecureRandom.rand(22..SecureRandom.rand(22..44)).times do
       shuffled.shuffle!
     end
     words.to_a.each_with_index{|w, i|
       w.update(order_index: shuffled[i])
     }
 
-
-    raise "generate dictionary error! words.count not equal to 78?" unless words.count == 78
+    raise "generate dictionary error! words.count not equal to 84?" unless words.count == 84
   end
 end

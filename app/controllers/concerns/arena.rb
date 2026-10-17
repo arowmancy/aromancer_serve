@@ -7,7 +7,7 @@ module Arena
       word_id: "integer, this is the 'word being played' this turn",
       sentence_id: "integer, this is the 'sentence being played' this turn (optional)",
       sentence: {
-        signature_id: "integer, nullable, if present, attempt to sign the sentence.",
+        signature_id: "integer, null-able, if present, attempt to sign the sentence.",
         word_ids: "integer array, word ids to include in sentence.",
         is_stack: "boolean, is_stack for new sentence.",
       }
@@ -25,8 +25,10 @@ module Arena
 
   # this is used for combining sentences into one
   # it does not count as the player's turn so long
-  # as they are holding a valid signature card.
-  def process_arena_update(arena, chapter, player)
+  # as they are holding a valid signature word.
+  def process_arena_update(arena, chapter, player, entry_text: nil)
+    Thread.current[:player] = player
+    @param_structure = UPDATE_PAYLOAD.dup
     if arena.nil?
       # missing params
       error_message = "missing arena param"
@@ -92,10 +94,17 @@ module Arena
     words.each{|w|
       sentence.sentence_words.create(word: w)
     }
+
+    chapter.entries.create(
+      player: player,
+      action: :edit_sentence,
+      description: arena[:wytyd]
+    )
   end
 
-
-  def process_arena_create(arena, chapter, player)
+  def process_arena_create(arena, chapter, player, entry_text: nil)
+    @param_structure = CREATE_PAYLOAD.dup
+    Thread.current[:player] = player
     if arena.nil?
       # missing params
       error_message = "missing arena param"
@@ -105,16 +114,31 @@ module Arena
     end
 
     word = nil
+    is_player_word = true
     if arena[:word_id].present?
-      word = chapter.story.dictionary.words.find_by(id: arena[:word_id])
+      word = chapter.story.dictionary.words.where(id: chapter.player_words.where(
+        player: player,
+        word_id: arena[:word_id]
+      ).pluck(:word_id)).first
+
+      if word&.mathematica?
+        player.submit_turn(word, entry: chapter.entries.create(
+          player: player,
+          word: word,
+          description: entry_text
+        ))
+        return
+      end
+    end
+
+    if word.nil?
+      word = chapter.unwritten_words.find_by(id: arena[:word_id])
     end
 
     existing_sentence = nil
     if word.nil?
       existing_sentence = chapter.sentences.find_by(id: arena[:sentence_id])
     end
-
-    # debugger
 
     if word.nil? && existing_sentence.nil?
       error_message = "invalid value(s) at param [word_id or sentence_id]"
@@ -125,6 +149,7 @@ module Arena
 
     sws = []
     sentence = nil
+    promise = nil
     should_sign = false
     is_stack = false
     if arena[:sentence].present?
@@ -176,9 +201,17 @@ module Arena
     # if we make it here, the payload is ready to be submitted
     @new_entry = chapter.entries.create(
       player: player,
-      word: word
+      word: word,
+      description: entry_text
     )
 
-    player.submit_turn(word, existing_sentence&.id, sws, should_sign, is_stack, entry: @new_entry)
+    player.submit_turn(
+      word,
+      existing_sentence&.id,
+      sws,
+      should_sign,
+      is_stack,
+      entry: @new_entry
+    )
   end
 end

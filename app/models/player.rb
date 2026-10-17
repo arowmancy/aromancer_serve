@@ -30,7 +30,19 @@ class Player < ApplicationRecord
   ]
 
   def set_api_key
-    self.api_key = Random.uuid
+    self.api_key = SecureRandom.uuid
+  end
+
+  def current_language
+    player_legends.where(legend: active_legend).first&.mathematica
+  end
+
+  def current_score
+    return -1 unless active_legend.present?
+
+    Chapter.where(story_id: active_legend.stories.pluck(:id)).map{|c|
+      c.sentences.where.not(signature_id: nil).where(author: self).map{|s| s.weight}.sum
+    }.sum.round(1)
   end
 
   def current_game_json
@@ -48,7 +60,7 @@ class Player < ApplicationRecord
     end
   end
 
-  # expects word to be the "signature card" if sign = true
+  # expects word to be the "signature word" if sign = true
   def submit_turn(word,
     sentence_id = nil,
     words = [],
@@ -59,7 +71,7 @@ class Player < ApplicationRecord
     entry = active_legend.current.entries.find_by(id: entry&.id) || active_legend.current.entries.create(
       player: self,
       word: word,
-      description: "#{self.alias} submitting turn..."
+      description: "#{self.alias}_submit_turn_#{word.value_display}."
     )
     # player is adding their own word to the scroll
     is_playing_turn = active_legend.current.player_words.where(player: self, word_id: [word.id] + words).any?
@@ -73,16 +85,19 @@ class Player < ApplicationRecord
           author: self,
           signature: sign ? word : nil,
           is_stack: is_stack,
-          value: word.value
+          value: word.value,
+          mathematica: current_language
         )
-        entry_desc = "#{self.alias} created sentence: "
+        entry_desc = "#{self.alias}_created_sentence_==>>_"
       else
+        entry_desc = "#{self.alias}_modified_sentence:#{sentence.value_display}_==>>_"
         if sign
           sentence.signature = word
           sentence.author = self
-          entry_desc = "#{self.alias} signed sentence: "
+          entry_desc = "#{self.alias}_signed_sentence_==>>_"
         end
         sentence.is_stack = is_stack
+        sentence.mathematica = current_language unless current_language.nil?
         sentence.save
       end
 
@@ -90,13 +105,18 @@ class Player < ApplicationRecord
       sentence.sentence_words.destroy_all
 
       words.each{|wid|
+        # destroy all other-sentence associations for each word
+        active_legend.current.unsigned_sentences.where.not(
+          id: sentence.id
+        ).joins(:sentence_words).where(
+          sentence_words: {word_id: wid}
+        ).destroy_all
         sentence.sentence_words.create(word: wid)
       }
 
       wids_to_remove = words.pluck(:id).to_a
-      if word.present?
-        wids_to_remove << word.id
-      end
+      wids_to_remove << word.id if word.present?
+      wids_to_remove << current_language.id if current_language.present?
 
       if is_playing_turn
         # remove all words from player_words
@@ -112,18 +132,34 @@ class Player < ApplicationRecord
 
       if sentence.sentence_words.any?
         sentence.save
-        entry.update(description: entry_desc + sentence.value_display)
+        entry.update(description: entry_desc + sentence.reload.value_display)
       end
+
+      WritableOption.find_by(id: Thread.current[:writable_option_id])&.writable&.destroy
+      Thread.current[:writable_option_id] = nil
     end
 
     if is_playing_turn
-      active_legend.current.add_scroll_word(self, word) unless sentence.present? # already took care of it
+      if word.mathematica?
+        # remove from player words
+        active_legend.current.player_words.where(word: word).delete_all
+        # set language override for one turn
+        player_legends.where(legend: active_legend).update_all(mathematica_id: word.id)
+      elsif sentence.present?
+        # unset language override if sentence is present
+        player_legends.where(legend: active_legend).update_all(mathematica_id: nil) if current_language.present?
+      else
+        # if no sentence, add word to scroll
+        active_legend.current.add_scroll_word(self, word)
+      end
 
-      return unless active_legend.current.unspoken_words.any?
+      # expire writables after player submits turn
+      player_legends.find_by(legend: active_legend).writables.destroy_all
 
       next_id = active_legend.players.where.not(id: self.id).order(id: :asc).first.id
-      active_legend.current.update(turn_player_id: next_id)
-      active_legend.reload
+      next_id = self.id unless active_legend.current.player_words.where(player_id: next_id).any?
+      active_legend.current.update(turn_player_id: next_id) if active_legend.current.unspoken_words.any?
+      active_legend.reload.current # trigger finalization now if no unspoken words
 
       if active_legend.current.turn_player.kind_of?(BotPlayer)
         # poke the bot player

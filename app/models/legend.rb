@@ -20,17 +20,42 @@ class Legend < ApplicationRecord
     :complete,
   ]
 
+  def legend_json
+    {
+      id: id,
+      value_display: to_s,
+      status: status,
+      story_count: story_count,
+      player_count: player_count,
+      created_at: created_at,
+      updated_at: updated_at
+    }
+
+  end
+
+  def to_s
+    "#{Word::UNICODE[:integral]}(#{id}) #{Word::UNICODE[:equals]} [#{players.map{|p| p.alias}.join(",")}]".gsub(" ", "_")
+  end
+
   def waiting_room
     {
-      title: "waiting for players",
-      players: active_players.map{|p| {id: p.id, alias: p.alias}}
+      title: "#{status} waiting for players",
+      players: active_players.map{|p| {id: p.id, alias: p.alias}},
+      dealer: nil,
+      turn_player: nil,
+      scroll_words: [],
+      sentences: []
     }
   end
 
   def final_state_json
     {
-      title: "legend complete. final score:",
-      players: players.map{|p| stories.first.chapters.last.player_json(p)}
+      title: "#{status}",
+      players: players.map{|p| stories.first.chapters.last.player_json(p)},
+      dealer: nil,
+      turn_player: nil,
+      scroll_words: [],
+      sentences: []
     }
   end
 

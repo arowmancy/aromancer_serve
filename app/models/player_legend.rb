@@ -1,6 +1,8 @@
 class PlayerLegend < ApplicationRecord
   belongs_to :player
   belongs_to :legend
+  belongs_to :mathematica, class_name: :Word, optional: true
+  has_many :writables
 
   after_create :notify_player
 

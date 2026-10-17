@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_27_013928) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_18_052137) do
   create_table "chapters", force: :cascade do |t|
     t.boolean "is_final", default: false
     t.integer "story_id", null: false
@@ -55,9 +55,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_27_013928) do
   create_table "player_legends", force: :cascade do |t|
     t.integer "player_id", null: false
     t.integer "legend_id", null: false
+    t.integer "mathematica_id"
+    t.decimal "score", default: "0.0"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["legend_id"], name: "index_player_legends_on_legend_id"
+    t.index ["mathematica_id"], name: "index_player_legends_on_mathematica_id"
     t.index ["player_id", "legend_id"], name: "index_player_legends_on_player_id_and_legend_id", unique: true
     t.index ["player_id"], name: "index_player_legends_on_player_id"
   end
@@ -112,15 +115,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_27_013928) do
 
   create_table "sentences", force: :cascade do |t|
     t.integer "value", default: 0
+    t.integer "language", default: 0
     t.integer "signature_id"
     t.integer "author_id", null: false
     t.integer "chapter_id", null: false
+    t.integer "mathematica_id"
     t.boolean "is_stack", default: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["author_id"], name: "index_sentences_on_author_id"
     t.index ["chapter_id"], name: "index_sentences_on_chapter_id"
     t.index ["id", "signature_id", "author_id", "chapter_id"], name: "idx_on_id_signature_id_author_id_chapter_id_9056f18253", unique: true
+    t.index ["mathematica_id"], name: "index_sentences_on_mathematica_id"
     t.index ["signature_id"], name: "index_sentences_on_signature_id"
   end
 
@@ -164,6 +170,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_27_013928) do
     t.index ["dictionary_id"], name: "index_words_on_dictionary_id"
   end
 
+  create_table "writable_options", force: :cascade do |t|
+    t.integer "writable_id", null: false
+    t.string "uuid", null: false
+    t.string "payload"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["writable_id"], name: "index_writable_options_on_writable_id"
+  end
+
+  create_table "writables", force: :cascade do |t|
+    t.string "uuid", null: false
+    t.integer "word_id", null: false
+    t.integer "player_legend_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["player_legend_id"], name: "index_writables_on_player_legend_id"
+    t.index ["word_id"], name: "index_writables_on_word_id"
+  end
+
   add_foreign_key "chapters", "stories"
   add_foreign_key "dictionaries", "stories"
   add_foreign_key "entries", "chapters"
@@ -183,4 +208,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_27_013928) do
   add_foreign_key "sessions", "users"
   add_foreign_key "stories", "legends"
   add_foreign_key "words", "dictionaries"
+  add_foreign_key "writable_options", "writables"
+  add_foreign_key "writables", "player_legends"
+  add_foreign_key "writables", "words"
 end
