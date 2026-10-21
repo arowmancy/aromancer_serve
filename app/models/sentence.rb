@@ -18,7 +18,7 @@ class Sentence < ApplicationRecord
   ]
 
   def value_display
-    "#{to_s}#{Word::UNICODE[:equals]}#{value}"
+    "#{to_s}#{Word::UNICODE[:equals]}#{value} <#{author.alias}>"
   end
 
   def weight
@@ -30,7 +30,8 @@ class Sentence < ApplicationRecord
     wds = words.map{|w| w.value_display}.join("_")
     stk = is_stack ? "_(STK)" : ""
     mth = "#{mathematica.present? ? mathematica.value_display : "#{Word::UNICODE[:integral]}(#{Word::UNICODE[:OPERATORS][:plus]})"}"
-    "#{mth}#{Word::UNICODE[:equals]}[#{sig}#{wds}]#{stk}".gsub(" ", "_")
+    wt = "" # "<#{weight.round(3)}g>"
+    "#{mth}#{Word::UNICODE[:equals]}[#{sig}#{wds}]#{stk}#{wt}".gsub(" ", "_")
   end
 
   def json_sentence

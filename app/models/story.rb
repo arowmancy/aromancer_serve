@@ -14,21 +14,16 @@ class Story < ApplicationRecord
     return if chapters.where(is_final: true).present?
 
     Dictionary.create(story: self) if dictionary.nil?
-
     last_scroll_words = chapters.last&.scroll_words || []
     last_unsigned_sentences = chapters.last&.unsigned_sentences || []
     @current_chapter = chapters.create(
       turn_player: legend.players.where.not(id: dealer.id).first
     )
-
-    legend.active_players.each{|p|
-      PlayerChannel.broadcast_to(p, {type: :arena, id: legend.id})
-    }
-
     last_scroll_words&.update_all(chapter_id: @current_chapter.id) if last_scroll_words.any?
     last_unsigned_sentences&.update_all(chapter_id: @current_chapter.id) if last_unsigned_sentences.any?
-
     @current_chapter.start
+    @current_chapter.reload
+    PlayerChannel.broadcast_to(@current_chapter.turn_player, {type: :arena, id: legend.id})
     @current_chapter
   end
 
@@ -36,7 +31,7 @@ class Story < ApplicationRecord
     @current_chapter ||= chapters.to_a.filter{|c| c.unspoken_words.any?}.first || start
   end
 
-  def finalize
+  def finalize!
     return unless winner.nil?
     # end of story
     final_chapter = chapters.last
@@ -53,8 +48,7 @@ class Story < ApplicationRecord
 
     # create final sentence to hold everything left on the scroll
     closing_sentence = final_chapter.sentences.create(
-      is_stack: true,
-      value: final_chapter.unwritten_words.map{|uw| uw.value}.max,
+      value: 0,
       words: dictionary.words.where(id: final_chapter.scroll_words.pluck(:word_id)),
       signature: final_chapter.scroll_words.first.word, # shouldn't matter
       author: scroll_winner
@@ -76,8 +70,6 @@ class Story < ApplicationRecord
 
     final_chapter.save
 
-    # todo: set story winner
-    # todo: write_a_method_to_get_this_based_on_signed_sentences)
-    update(winner: scroll_winner) # just using scroll_winner for now
+    update(winner: legend.players.max{|p| Player.score(legend, p)})
   end
 end

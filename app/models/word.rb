@@ -1,4 +1,3 @@
-# a tarot card or a mathematica card
 class Word < ApplicationRecord
   # "top" of face-down deck is lowest order_index
   default_scope { order(order_index: :asc) }
@@ -50,6 +49,18 @@ class Word < ApplicationRecord
     # => each story has a total possible of 11 points.
     # => addition is the default language.
     # => mathematica words change the player's language for their next sentence.
+
+    # !todo: not fully implemented in code yet!
+    #
+    #
+    # => if player has >= 1 authored, unsigned sentence(s) on the scroll,
+    # => they can only:
+    #   => place words
+    #   => sign anything else
+    #   => create sentences that equal value of authored, unsigned sentence(s)
+    #
+    #
+    # !todo: not fully implemented in code yet!
 
     # scoring:
 
@@ -164,6 +175,14 @@ class Word < ApplicationRecord
     :"_#{UNICODE[:OPERATORS][language].to_sym}_".to_s
   end
 
+  def self.generate_possibilities_for_player(scope_player)
+    return # todo
+    return unless scope_player.present?
+
+    Thread.current[:player] = scope_player
+    return unless player_words.any?
+  end
+
   def possibilities(scope_player)
     Thread.current[:player] = scope_player
     return {
@@ -182,46 +201,13 @@ class Word < ApplicationRecord
 
       payload = {}
       s = nil
-      can_maths = []
       if o.kind_of?(Sentence)
         s = o
-      elsif o.kind_of?(Hash)
-        w = o[:this]
-        can_maths = o[:that]
       end
-      w = o if s.nil? && !can_maths.any?
+      w = o if s.nil?
 
       result_value = 0
       case action
-      when :can_math
-        case possibility_for_type
-        when :player_word
-          turn_word = w
-          other_player_words = can_maths.select{|cm| self.player_words.where(id: cm.kind_of?(Sentence) ? cm.words.pluck(:id) : cm.id).any?}
-
-          humanized_title += " a new sentence with #{([w.value_display] + can_maths.map{|cm| cm.value_display}).join(", ")}"
-          total_weight = w.weight + can_maths.sum{|cm| cm.weight}
-
-          turn_word = other_player_words.any? ? other_player_words.first : turn_word
-          word_ids = []
-          can_maths.each{|cm|
-            word_ids += cm.kind_of?(Sentence) ? cm.words.pluck(:id) : [cm.id]
-          }
-
-          payload = {
-            word_id: turn_word.id,
-            sentence: {
-              promise_id: w.id,
-              mathematica_id: self.id,
-              signature_id: other_player_words.any? ? nil : turn_word.id,
-              word_ids: word_ids.filter{|wid| wid != w.id}
-            }
-          }
-        when :scroll_word
-          # todo:
-        when :scroll_sentence
-          # todo:
-        end
       when :can_sign
         if s.nil?
           if self_sentence.nil?
@@ -360,6 +346,7 @@ class Word < ApplicationRecord
         end
       end
 
+      # todo: caching writables
 
       option = writable.writable_options.create(payload: {
         body: payload,
@@ -383,7 +370,6 @@ class Word < ApplicationRecord
     result += (can_sign_options || []).map{|o| mapper.call(:can_sign, o)}
     result += (can_combine_options || []).map{|o| mapper.call(:can_combine, o)}
     result += (can_stack_options || []).map{|o| mapper.call(:can_stack, o)}
-    result += (can_math_options || []).map{|o| mapper.call(:can_math, o)}
 
     {
       uuid: writable.uuid,
@@ -409,63 +395,6 @@ class Word < ApplicationRecord
 
       @for_type = for_type
       @for_type
-    end
-
-    def can_math_options
-      return [] #unless mathematica?
-
-      language = Word.language_for_mathematica(self)
-      case possibility_for_type
-      when :player_word
-        #
-        # => get possible new 2-word sentences if mathematica is used to combine them
-        #
-        #     can_math =
-        #       any_player_word.value == any_other_player_word.value ["+", "-", "×", "÷"] scroll_word.value ||
-        #       any_player_word.value == any_scroll_word.value ["+", "-", "×", "÷"] any_other_scroll_word.value ||
-        #       any_player_word.value == any_scroll_word.value ["+", "-", "×", "÷"] any_scroll_sentence.value (!is_stack) ||
-        #       any_player_word.value == any_other_player_word.value ["+", "-", "×", "÷"] scroll_sentence.value
-        #
-        result = []
-        swta = scroll_words.to_a
-        numeric_player_words.each{|w|
-          swta.each{|sw| numeric_player_words.where.not(id: w.id).any?{|pw|
-              can_math = w.value == pw.combined_with_value(sw, language)
-              result << {this: w, that: [pw, sw], value: w.value} if can_math
-            }
-          }
-          swta.each{|sw|
-            scroll_words.where.not(id: sw.id).each{|isw|
-              can_math = w.value == sw.combined_with_value(isw, language)
-              result << {this: w, that: [sw, isw], value: w.value} if can_math
-            }
-          }
-        }
-        swta.each{|sw|
-          numeric_player_words.each{|w|
-            numeric_player_words.where.not(id: w.id).each{|pw|
-              can_math = pw.value == sw.combined_with_value(w, language)
-              result << {this: pw, that: [sw, w], value: w.value} if can_math
-            }
-          }
-        }
-        scroll_sentences.each{|ss|
-          !ss.is_stack && numeric_player_words.each{|w|
-            swta.each{|sw|
-              can_math = w.value == sw.combined_with_value(ss.words.first, language)
-              result << {this: w, that: [sw, ss], value: w.value} if can_math
-            }
-            numeric_player_words.where.not(id: w.id).each{|pw|
-              can_math = w.value == pw.combined_with_value(ss.words.first, language)
-              result << {this: w, that: [pw, ss], value: w.value} if can_math
-            }
-          }
-        }
-
-        return result
-      when :scroll_word
-      when :scroll_sentence
-      end
     end
 
     def signature_matcher(words)
@@ -515,6 +444,7 @@ class Word < ApplicationRecord
 
     def can_combine_options
       return [] unless number?
+      player_aus = player.authored_unsigned_sentences.filter{|s| s.id != self_sentence&.id}
 
       case possibility_for_type
       when :player_word
@@ -531,11 +461,12 @@ class Word < ApplicationRecord
         #
         return scroll_words.select{|w|
           w.number? && numeric_player_words.any?{|pw|
-            pw.value == combined_with_value(w)
+            pw.value == combined_with_value(w) &&
+            (!player_aus.any? || player_aus.first.value == pw.value)
           }
         } + scroll_sentences.select{|ss|
           !ss.is_stack && numeric_player_words.any?{|pw|
-            pw.number? && pw.value == combined_with_value(ss.words.first) # todo: ensure this works as expected - should use word's self_sentence value to do all calculations.
+            pw.number? && pw.value == combined_with_value(ss.words.first)
           }
         }
       when :scroll_word
@@ -550,15 +481,18 @@ class Word < ApplicationRecord
         #
         return player_words.select{|w|
           w.number? && numeric_player_words.any?{|pw|
-            pw.value == combined_with_value(w)
+            pw.value == combined_with_value(w) &&
+            (!player_aus.any? || player_aus.first.value == pw.value)
           }
         } + scroll_words.select{|w|
-          w.number? && numeric_player_words.any?{|pw|
-            pw.value == combined_with_value(w)
+          w.id != self.id && w.number? && numeric_player_words.any?{|pw|
+            pw.value == combined_with_value(w) &&
+            (!player_aus.any? || player_aus.first.value == pw.value)
           }
         } + scroll_sentences.select{|ss|
           !ss.is_stack && numeric_player_words.any?{|pw|
-            pw.value == combined_with_value(ss.words.first)
+            pw.value == combined_with_value(ss.words.first) &&
+            (!player_aus.any? || player_aus.first.value == pw.value)
           }
         }
       when :scroll_sentence
@@ -573,16 +507,19 @@ class Word < ApplicationRecord
         return [] if self_sentence.present? && self_sentence.is_stack
         return player_words.select{|w|
           w.number? && numeric_player_words.any?{|pw|
-            pw.value == combined_with_value(w)
+            pw.value == combined_with_value(w) &&
+            (!player_aus.any? || player_aus.first.value == pw.value)
           }
         } + scroll_words.select{|w|
           w.number? && numeric_player_words.any?{|pw|
-            pw.value == combined_with_value(w)
+            pw.value == combined_with_value(w) &&
+            (!player_aus.any? || player_aus.first.value == pw.value)
           }
         } + scroll_sentences.select{|ss|
           (self_sentence.nil? || self_sentence.id != ss.id) &&
           numeric_player_words.any?{|pw|
-            pw.value == combined_with_value(ss.words.first)
+            pw.value == combined_with_value(ss.words.first) &&
+            (!player_aus.any? || player_aus.first.value == pw.value)
           }
         }
       end
@@ -636,7 +573,7 @@ class Word < ApplicationRecord
             }.any?
           )
         } + scroll_words.select{|w|
-          w != self && w.number? && (
+          w.id != self.id && w.number? && (
             self.absolute_value == w.value && numeric_player_words.select{|pw|
               pw.value == w.value
             }.any?

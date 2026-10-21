@@ -34,7 +34,7 @@ class Legend < ApplicationRecord
   end
 
   def to_s
-    "#{Word::UNICODE[:integral]}(#{id}) #{Word::UNICODE[:equals]} [#{players.map{|p| p.alias}.join(",")}]".gsub(" ", "_")
+    "#{Word::UNICODE[:integral]}(#{created_at.to_i})#{Word::UNICODE[:equals]}[#{players.map{|p| p.alias}.join(",")}](#{status})".gsub(" ", "_")
   end
 
   def waiting_room
@@ -52,6 +52,7 @@ class Legend < ApplicationRecord
     {
       title: "#{status}",
       players: players.map{|p| stories.first.chapters.last.player_json(p)},
+      winner: stories.first.winner, # todo: multiple stories
       dealer: nil,
       turn_player: nil,
       scroll_words: [],
@@ -102,15 +103,14 @@ class Legend < ApplicationRecord
 
       return next_story.chapters.first
     elsif !complete?
-      stories.last.finalize
+      stories.last.finalize!
       complete!
-
       active_players.each{|p|
+        PlayerChannel.broadcast_to(p, {type: :legends})
         PlayerChannel.broadcast_to(p, {type: :arena, id: self.id})
       }
     end
 
     return stories.last.chapters.last
-
   end
 end
