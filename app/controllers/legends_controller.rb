@@ -1,7 +1,7 @@
 class LegendsController < ApplicationController
 
   def find
-    legends = Legend.where(status: :created).order(created_at: :asc)
+    legends = Legend.where(status: :created).order(created_at: :asc).map{|l| l.legend_json}
     render json: legends, status: :ok
   end
 
@@ -16,14 +16,16 @@ class LegendsController < ApplicationController
   end
 
   def index
-    legends = @api_player.legends.order(created_at: :asc).map{|l| l.legend_json}
+    legends = Legend.where(
+      id: @api_player.legends.pluck(:id) + [@api_player.active_legend&.id]
+    ).order(created_at: :asc).map{|l| l.legend_json}
     render json: legends, status: :ok
   end
 
   def create
     @legend = Legend.new(legend_params)
     if @legend.save
-      render json: @legend, status: :created
+      render json: @legend.legend_json, status: :created
     else
       respond_with_error(unprocessable_content, @legend.errors.full_messages)
     end

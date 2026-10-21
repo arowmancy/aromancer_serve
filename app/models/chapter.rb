@@ -55,11 +55,15 @@ class Chapter < ApplicationRecord
     }
   end
 
+  def closed?
+    unspoken_words.empty? && unwritten_words.empty? && unsigned_sentences.empty?
+  end
+
   def add_scroll_word(player, word)
     unless player.id == turn_player.id
       entries.last.update(
         description: (entries.last.description || "") +
-        " rollback transaction because (player.id 1= turn_player.id) check failed."
+        " rollback transaction because (player.id = turn_player.id) check failed."
       )
       return
     end
@@ -104,6 +108,7 @@ class Chapter < ApplicationRecord
   def player_json(player, for_player = nil)
     json_result = {
       id: player.id,
+      status: player.status,
       alias: "#{player.alias}#{player.current_language.present? ? "(#{player.current_language.value_display})" : ""}",
       score: player.current_score,
       words: unspoken_words.where(
@@ -116,10 +121,6 @@ class Chapter < ApplicationRecord
     }
 
     if for_player.present? && player == for_player
-      # todo: add other player-only-facing fields here
-      # eg: json_result[:api_key] = player.api_key
-      #
-
       json_result[:sentences] =
         sentences.where.not(signature_id: nil).where(author: player).map{|s| s.json_sentence}
     end

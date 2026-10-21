@@ -3,3 +3,4 @@ en:
     invalid: "invalid email address or password"
     not_your_turn: "it is not your turn"
     missing_writable: "missing_writable"
+    user_already_exists: "user_already_exists"

@@ -10,6 +10,7 @@ class Player < ApplicationRecord
 
   after_validation :check_alias, :check_active_legend
   before_create :set_api_key
+  after_update :process_legend_status
 
   class ActiveLegendValidator < ActiveModel::Validator
     def validate(record)
@@ -37,27 +38,38 @@ class Player < ApplicationRecord
     player_legends.where(legend: active_legend).first&.mathematica
   end
 
+  def self.score(legend, player)
+    Chapter.where(story_id: legend.stories.pluck(:id)).map{|c|
+      c.sentences.where.not(signature_id: nil).where(author: player).map{|s| s.weight}.sum
+    }.sum.round(1)
+  end
+
   def current_score
     return -1 unless active_legend.present?
+    Player.score(active_legend, self)
+  end
 
-    Chapter.where(story_id: active_legend.stories.pluck(:id)).map{|c|
-      c.sentences.where.not(signature_id: nil).where(author: self).map{|s| s.weight}.sum
-    }.sum.round(1)
+  def authored_unsigned_sentences
+    return [] unless active_legend&.current.present?
+
+    active_legend.current.unsigned_sentences.where(author: self)
   end
 
   def current_game_json
     return nil unless active_legend.present?
-
-    if active_legend.current.present?
-      case active_legend.status.to_sym
-      when :started
-        return active_legend.current.current_state_json(self)
-      when :complete
-        return active_legend.final_state_json
-      end
-    else
+    case active_legend.status.to_sym
+    when :created
       return active_legend.waiting_room
+    when :started, :paused
+      if active_legend.current.present?
+        return active_legend.current.current_state_json(self)
+      else
+        raise "missing expected active_legend current!"
+      end
+    when :dnf, :complete
+      return active_legend.final_state_json
     end
+
   end
 
   # expects word to be the "signature word" if sign = true
@@ -93,9 +105,9 @@ class Player < ApplicationRecord
         entry_desc = "#{self.alias}_modified_sentence:#{sentence.value_display}_==>>_"
         if sign
           sentence.signature = word
-          sentence.author = self
           entry_desc = "#{self.alias}_signed_sentence_==>>_"
         end
+        sentence.author = self
         sentence.is_stack = is_stack
         sentence.mathematica = current_language unless current_language.nil?
         sentence.save
@@ -134,9 +146,6 @@ class Player < ApplicationRecord
         sentence.save
         entry.update(description: entry_desc + sentence.reload.value_display)
       end
-
-      WritableOption.find_by(id: Thread.current[:writable_option_id])&.writable&.destroy
-      Thread.current[:writable_option_id] = nil
     end
 
     if is_playing_turn
@@ -160,6 +169,10 @@ class Player < ApplicationRecord
       next_id = self.id unless active_legend.current.player_words.where(player_id: next_id).any?
       active_legend.current.update(turn_player_id: next_id) if active_legend.current.unspoken_words.any?
       active_legend.reload.current # trigger finalization now if no unspoken words
+      active_legend.current.reload
+      # generate all possibilities for next player
+      # todo: this is currently not running
+      Word.generate_possibilities_for_player(active_legend.current.turn_player)
 
       if active_legend.current.turn_player.kind_of?(BotPlayer)
         # poke the bot player
@@ -189,5 +202,14 @@ class Player < ApplicationRecord
       active_legend_id == :null.to_s
 
     self.active_legend_id = self.active_legend_id.to_i if self.active_legend_id.kind_of?(String)
+  end
+
+  def process_legend_status
+    if saved_change_to_active_legend_id?
+      previous = Legend.find_by(id: active_legend_id_before_last_save)
+
+      previous&.check_status
+      active_legend&.check_status
+    end
   end
 end

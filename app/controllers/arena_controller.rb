@@ -18,7 +18,6 @@ class ArenaController < ApplicationController
       end
 
       render json: @api_player.current_game_json
-      return
     else
       # {code: 404, name: :not_found}
       respond_with_error :not_found, I18n.t("errors.missing_writable")

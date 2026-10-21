@@ -16,8 +16,8 @@
 #   2 players x 11 words/each x 3 chapters = 66 words
 #   2x11x3=(66) words each (3 chapters)
 #
-#   2 players x 18 words/each x 1 chapter = 18 words
-#   2x9x1 =(18) words each (last chapter)
+#   2 players x 9 words/each x 1 chapter = 18 words
+#   2x9x1=(18) words each (last chapter)
 #
 # total: 84 = 66+18
 #

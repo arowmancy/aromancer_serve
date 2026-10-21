@@ -42,6 +42,23 @@ RSpec.describe "the aromancer arena api" do
     expect(Legend.count).to eq(lc + 1)
   end
 
+  it "can display waiting room" do
+    legend = Legend.last
+    p1 = Player.find_by(alias: :p1)
+
+    # ensure legend is in the expected status
+    expect(legend.created?).to be(true)
+    expect(p1.lobby?).to be(true)
+
+    # both players join the game
+    put_request_player_status(p1, :playing, legend.id)
+    sleep(0.1)
+    expect(legend.reload.started?).to be(false)
+    expect(p1.reload.playing?).to be(true)
+    expect(p1.active_legend.id).to eq(legend.id)
+    expect(legend.current.present?).to be(false)
+  end
+
   it "can start the legend when both players are present" do
     legend = Legend.last
     p1 = Player.find_by(alias: :p1)
@@ -49,14 +66,13 @@ RSpec.describe "the aromancer arena api" do
 
     # ensure legend is in the expected status
     expect(legend.created?).to be(true)
-    expect(p1.lobby?).to be(true)
+    expect(p1.playing?).to be(true)
     expect(p2.lobby?).to be(true)
 
     # both players join the game
-    put_request_player_status(p1, :playing, legend.id)
     put_request_player_status(p2, :playing, legend.id)
-    sleep(0.1)
-    expect(legend.reload.started?).to be(false)
+    sleep(1)
+    expect(legend.reload.started?).to be(true)
     expect(p1.reload.playing?).to be(true)
     expect(p2.reload.playing?).to be(true)
     expect(p1.active_legend.id).to eq(legend.id)
@@ -67,6 +83,29 @@ RSpec.describe "the aromancer arena api" do
     get "/legends/#{legend.id}/arena", headers: HEADERS.merge({"Authorization": api_key_param})
     expect(response.status).to eq(200)
     expect(legend.reload.started?).to be(true)
+  end
+
+  it "can pause and resume a game" do
+    legend = Legend.last
+    p1 = Player.find_by(alias: :p1)
+
+    # ensure legend is in the expected status
+    expect(legend.started?).to be(true)
+    expect(p1.playing?).to be(true)
+
+    # both players join the game
+    put_request_player_status(p1, :lobby, nil)
+    sleep(0.1)
+    expect(legend.reload.paused?).to be(true)
+    expect(p1.reload.lobby?).to be(true)
+    expect(p1.active_legend&.id).to eq(nil)
+    sleep(0.1)
+    put_request_player_status(p1, :playing, legend.id)
+    sleep(0.1)
+    expect(legend.reload.started?).to be(true)
+    expect(p1.reload.playing?).to be(true)
+    expect(p1.active_legend.id).to eq(legend.id)
+    expect(legend.current.present?).to be(true)
   end
 
   it "can play through a game" do
@@ -145,8 +184,8 @@ RSpec.describe "the aromancer arena api" do
       && tp_word_ids.count == 1
 
       # just took last turn
-      puts "# just took last turn"
-      puts JSON.pretty_generate response.body
+      # puts "# just took last turn"
+      # puts JSON.pretty_generate response.body
     end
   end
 

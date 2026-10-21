@@ -10,24 +10,25 @@ class WritableOption < ApplicationRecord
     # body: json
     # http_verb: http_verb,
     # value: numeric
+
     parsed = JSON.parse(payload).symbolize_keys
     body = (parsed[:body] || {}).symbolize_keys
     Thread.current[:writable_option_id] = self.id
-    Rails.logger.info "writing writable option:"
-    Rails.logger.info parsed
+    Rails.logger.debug "writing writable option:"
+    Rails.logger.debug parsed
     if parsed[:http_verb] == :put.to_s
       process_arena_update(
         body,
         writable.player_legend.legend.current,
         writable.player_legend.player,
-        entry_text: parsed[:entry_text].gsub(" ", "_")
+        entry_text: parsed[:entry_text].strip.gsub(" ", "_")
       )
     else
       process_arena_create(
         body,
         writable.player_legend.legend.current,
         writable.player_legend.player,
-        entry_text: parsed[:entry_text].gsub(" ", "_")
+        entry_text: parsed[:entry_text].strip.gsub(" ", "_")
       )
     end
     Thread.current[:writable_option_id] = nil
@@ -41,5 +42,11 @@ class WritableOption < ApplicationRecord
     Rails.logger.info("message: #{message}")
     Rails.logger.info("object: #{object || message}")
     Rails.logger.info("param_structure: #{param_structure || @param_structure}")
+
+    render json: {
+      error_message: message,
+      error_object: object || message,
+      param_structure: param_structure || @param_structure || message
+    }, status: head_response
   end
 end
