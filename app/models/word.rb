@@ -55,9 +55,10 @@ class Word < ApplicationRecord
     #
     # => if player has >= 1 authored, unsigned sentence(s) on the scroll,
     # => they can only:
-    #   => place words
+    #   => place word on the scroll
     #   => sign anything else
-    #   => create sentences that equal value of authored, unsigned sentence(s)
+    #   => create/stack sentences that equal value of authored, unsigned sentence(s)
+    #   => modify authored, unsigned sentence to equal value of any other player word
     #
     #
     # !todo: not fully implemented in code yet!

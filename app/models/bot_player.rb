@@ -17,7 +17,7 @@ class BotPlayer < Player
 
     m_words = words.filter{|w| w.mathematica?}
     math_option = nil
-    unless option.nil? || m_words.empty?
+    unless original_mathematica_id.nil? && (option.nil? || m_words.empty?)
       m_words.each{|m|
         active_legend.player_legends.find_by(player: self).update(mathematica_id: m.id)
         math_option = max_weight_option(words)
@@ -55,9 +55,9 @@ class BotPlayer < Player
   end
 
   def poke
-    return unless active_legend.present?
-    return unless active_legend.started?
-    return unless active_legend.current.turn_player.id == self.id
+    return unless active_legend.present?||
+      active_legend.started? ||
+      active_legend.current&.turn_player.id == self.id
 
 
     # todo:
@@ -74,6 +74,5 @@ class BotPlayer < Player
     end
 
     submit_turn(active_legend.current.player_words.where(player: self).sample.word) unless handled || option == true
-
   end
 end

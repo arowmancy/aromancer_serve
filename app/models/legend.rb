@@ -21,6 +21,7 @@ class Legend < ApplicationRecord
   ]
 
   def legend_json
+    reload
     {
       id: id,
       value_display: to_s,

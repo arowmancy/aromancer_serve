@@ -59,7 +59,7 @@ class Player < ApplicationRecord
 
     if active_legend.current.present?
       case active_legend.status.to_sym
-      when :started
+      when :started, :paused
         return active_legend.current.current_state_json(self)
       when :complete
         return active_legend.final_state_json
@@ -166,7 +166,7 @@ class Player < ApplicationRecord
       next_id = self.id unless active_legend.current.player_words.where(player_id: next_id).any?
       active_legend.current.update(turn_player_id: next_id) if active_legend.current.unspoken_words.any?
       active_legend.reload.current # trigger finalization now if no unspoken words
-
+      active_legend.current.reload
       # generate all possibilities for next player
       # todo: this is currently not running
       Word.generate_possibilities_for_player(active_legend.current.turn_player)
