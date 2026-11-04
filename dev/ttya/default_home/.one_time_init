@@ -1,0 +1,31 @@
+#! /bin/bash
+
+source $HOME/.bashrc
+
+read -p "enter git config --global user.email: " GIT_EMAIL
+git config --global user.email $GIT_EMAIL
+read -p "enter git config --global user.name: " GIT_NAME
+git config --global user.name $GIT_NAME
+git config --global init.defaultBranch main
+git config --global user.signingkey ~/.ssh/id_ed25519.pub
+git config --global gpg.format ssh
+git config --global commit.gpgsign true
+git config --global core.editor nano
+
+if [[ -f "~/.ssh/config" ]]; then
+  echo "~/.ssh configured"
+else
+  echo "Host ssh-server" >> "~/.ssh/config"
+  echo "  Hostname $SSH_SERVER" >> "~/.ssh/config"
+  echo "  Port     $SSH_PORT" >> "~/.ssh/config"
+  chmod 600 ~/.ssh/config
+fi
+
+git init
+git add .
+git commit -m "one_time_init complete"
+
+if [[ -f "$HOME/.one_time_init" ]]; then
+  mv ~/.one_time_init ~/.one_time_init_completed
+fi
+

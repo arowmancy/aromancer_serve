@@ -38,3 +38,9 @@
 # Ignore key files for decrypting credentials and more.
 /config/credentials/*.key
 
+vendor/*
+git-prompt.sh
+
+dev/ssh-server/logs/
+dev/ssh-server/ssh_host_keys/
+dev/ssh-server/sshd/

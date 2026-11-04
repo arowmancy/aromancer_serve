@@ -1,25 +1,70 @@
 services:
-  redis:
-    image: "redis:7-alpine"
-    volumes:
-      - redis_data:/data
-    ports:
-      - "6379:6379"
-  web:
+  # redis:
+  #   image: "redis:7-alpine"
+  #   volumes:
+  #     - redis_data:/data
+  #   ports:
+  #     - "6379:6379"
+  api:
     build: .
+    container_name: api
     ports:
-      - "80:80"
+      - 80:3000
     environment:
-      - REDIS_URL=redis://redis:6379/1
-      - RAILS_ENV=production
+      # - REDIS_URL=redis://redis:6379/1
+      - RAILS_ENV=development
       - RAILS_MASTER_KEY
-    depends_on:
-      - redis
+      - SSH_SERVER=ssh-server
+      - SSH_PORT=2097
+    # depends_on:
+    #   - redis
     volumes:
       # Mounts a dedicated volume directly to the production database folder
       - rails_db:/rails/db
       - rails_storage:/rails/storage # If using Active Storage
+    # networks:
+    #   - default
+    #   - isolated
+    depends_on:
+      - ssh-server
+  ssh-server:
+    image: linuxserver/openssh-server
+    container_name: ssh-server
+    environment:
+      - PUID=1111
+      - PGID=1111
+      - TZ=America/New_York
+      - PASSWORD_ACCESS=false
+      - LISTEN_PORT=2097
+    volumes:
+      - ./dev/ssh-server:/config
+    restart: unless-stopped
+    # networks:
+    #   - isolated
+  ttya:
+    build:
+      context: .
+      dockerfile: ./dev/ttya/Dockerfile
+    image: archlinux
+    container_name: ttya
+    platform: linux/amd64
+    tty: true
+    stdin_open: true
+    environment:
+      - SSH_SERVER=ssh-server
+      - SSH_PORT=2097
+    volumes:
+      - ttya_data:/home/default
+    # networks:
+    #   - isolated
+    depends_on:
+      - api
+      - ssh-server
+# networks:
+#   isolated:
+#     internal: true
 volumes:
   rails_db:
   rails_storage:
   redis_data:
+  ttya_data:
